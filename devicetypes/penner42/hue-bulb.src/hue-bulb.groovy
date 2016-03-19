@@ -221,6 +221,9 @@ def updateStatus(action, param, val) {
 			case "ct": 
             	sendEvent(name: "colorTemp", value: Math.round(1000000/val))
                 break
+			case "reachable":
+				sentEvent(name: "reachable", value: val)
+				break
 			default: 
 				log.debug("Unhandled parameter: ${param}. Value: ${val}")    
         }

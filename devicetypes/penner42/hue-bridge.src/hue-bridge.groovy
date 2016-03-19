@@ -139,7 +139,7 @@ def parse(String description) {
 				return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: [bulbs, scenes, groups, bridge.value.mac])
 			}
 		} else {
-        	log.debug("Unrecognized messsage: ${body}")
+        	log.debug("Unrecognized messsage: ${parsedEvent.body}")
         }
 	}
     return []

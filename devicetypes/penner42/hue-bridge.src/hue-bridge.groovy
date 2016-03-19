@@ -93,7 +93,7 @@ def discoverGroups() {
 def parse(String description) {
 	log.debug("parse")
 	def parsedEvent = parseLanMessage(description)
-    if (parsedEvent.headers && parsedEvent.body) {
+    if (parsedEvent.headers && parsedEvent.body && parsedEvent.headers.contains("application/json")) {
 		def headerString = parsedEvent.headers.toString()
         def body = new groovy.json.JsonSlurper().parseText(parsedEvent.body)
 	    def bridge = parent.getBridge(parsedEvent.mac)

@@ -93,50 +93,53 @@ def discoverGroups() {
 def parse(String description) {
 	log.debug("parse")
 	def parsedEvent = parseLanMessage(description)
-    if (parsedEvent.headers && parsedEvent.body && parsedEvent.headers.contains("application/json")) {
+    if (parsedEvent.headers && parsedEvent.body) {
 		def headerString = parsedEvent.headers.toString()
-        def body = new groovy.json.JsonSlurper().parseText(parsedEvent.body)
-	    def bridge = parent.getBridge(parsedEvent.mac)
-        /* response from bulb/group/scene command. Figure out which device it is, then pass it along to the device. */
-		if (body[0] != null && body[0].success != null) {
-        	body.each{ 
-            	it.success.each { k, v ->
-					def spl = k.split("/")
-                    def devId = ""
-                    if (spl[4] == "scene") {
-                    	devId = bridge.value.mac + "/SCENE" + v
+		if (headerString.contains("application/json")) {
+			def body = new groovy.json.JsonSlurper().parseText(parsedEvent.body)
+			def bridge = parent.getBridge(parsedEvent.mac)
+			/* response from bulb/group/scene command. Figure out which device it is, then pass it along to the device. */
+			if (body[0] != null && body[0].success != null) {
+				body.each{
+					it.success.each { k, v ->
+						def spl = k.split("/")
+						def devId = ""
+						if (spl[4] == "scene") {
+							devId = bridge.value.mac + "/SCENE" + v
+						} else {
+							if (spl[1] == "lights") {
+								spl[1] = "BULBS"
+							}
+							devId = bridge.value.mac + "/" + spl[1].toUpperCase()[0..-2] + spl[2]
+						}
+						def d = parent.getChildDevice(devId)
+						log.debug(d)
+						log.debug ("${devId} ${spl[3]} ${spl[4]} ${v}")
+						d.updateStatus(spl[3], spl[4], v)
+					}
+				}
+			} else if (body[0] != null && body[0].error != null) {
+				log.debug("Error: ${body}")
+			} else if (bridge) {
+				// && parent.state.inItemDiscovery && parent.state.inItemDiscovery == bridge.value.mac) {
+				def bulbs = bridge.value.bulbs
+				def groups = bridge.value.groups
+				def scenes = bridge.value.scenes
+
+				body.each { k, v ->
+					def deviceCreated = false
+					if (v.type == "Extended color light" || v.type == "Color light" || v.type == "Dimmable light") {
+						bulbs[k] = [id: k, name: v.name, type: v.type, state: v.state]
+					} else if (v.type == "LightGroup" || v.type == "Room") {
+						groups[k] = [id: k, name: v.name, type: v.type, action: v.action]
 					} else {
-                    	if (spl[1] == "lights") {
-                        	spl[1] = "BULBS"
-                        }
-						devId = bridge.value.mac + "/" + spl[1].toUpperCase()[0..-2] + spl[2]
-					}                        
-                    def d = parent.getChildDevice(devId)
-                    log.debug(d)
-					log.debug ("${devId} ${spl[3]} ${spl[4]} ${v}")
-                    d.updateStatus(spl[3], spl[4], v)
+						scenes[k] = [id: k, name: v.name]
+					}
 				}
+				return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: [bulbs, scenes, groups, bridge.value.mac])
 			}
-        } else if (body[0] != null && body[0].error != null) {
-        	log.debug("Error: ${body}")
-        } else if (bridge) { // && parent.state.inItemDiscovery && parent.state.inItemDiscovery == bridge.value.mac) {	
-			def bulbs = bridge.value.bulbs
-	        def groups = bridge.value.groups
-	        def scenes = bridge.value.scenes
-			
-			body.each { k,v ->
-            	def deviceCreated = false
-	        	if (v.type == "Extended color light" || v.type == "Color light" || v.type == "Dimmable light" ) {
-	            	bulbs[k] = [id: k, name: v.name, type: v.type, state: v.state]
-				} else if (v.type == "LightGroup" || v.type == "Room") {
-	            	groups[k] = [id: k, name: v.name, type: v.type, action: v.action]
-	            } else {
-	            	scenes[k] = [id: k, name: v.name]
-				}
-			}
-			return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: [bulbs, scenes, groups, bridge.value.mac])
 		} else {
-        	log.debug(body)
+        	log.debug("Unrecognized messsage: ${body}")
         }
 	}
     return []

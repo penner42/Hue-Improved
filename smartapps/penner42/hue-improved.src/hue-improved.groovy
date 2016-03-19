@@ -75,7 +75,7 @@ def createDevices(mac) {
             def d = getChildDevice(it.key)
             if (!d) {
                 try {
-                    debug("creating ${it.key} - ${it.value}")
+                    log.debug("creating ${it.key} - ${it.value}")
                     def bulbId = it.key.split("/")[1] - "BULB"
                     def type = getBridge(mac).value.bulbs[bulbId].type
                     if (type.equalsIgnoreCase("Dimmable light")) {
@@ -84,7 +84,7 @@ def createDevices(mac) {
                         addChildDevice("penner42", "Hue Bulb", it.key, hub, ["label": it.value])
                     }
                 } catch (e) {
-                    debug ("Exception ${e}")
+                    log.debug ("Exception ${e}")
                 }
             }
         }
@@ -92,10 +92,10 @@ def createDevices(mac) {
             def d = getChildDevice(it.key)
             if (!d) {
                 try {
-                    debug("creating ${it.key} - ${it.value}")
+                    log.debug("creating ${it.key} - ${it.value}")
                     addChildDevice("penner42", "Hue Scene", it.key, hub, ["label": it.value])
                 } catch (e) {
-                    debug ("Exception ${e}")
+                    log.debug ("Exception ${e}")
                 }
             }
         }
@@ -103,10 +103,10 @@ def createDevices(mac) {
             def d = getChildDevice(it.key)
             if (!d) {
                 try {
-                    debug("creating ${it.key} - ${it.value}")
+                    log.debug("creating ${it.key} - ${it.value}")
                     addChildDevice("penner42", "Hue Group", it.key, hub, ["label": it.value])
                 } catch (e) {
-                    debug ("Exception ${e}")
+                    log.debug ("Exception ${e}")
                 }
             }
         }
@@ -131,7 +131,7 @@ def removeDevices(mac) {
             def id = netId.split("/")[1] - "GROUP" - "SCENE" - "BULB"
             if (!(whichDevices.contains(id))) {
                 try {
-                    debug ("deleting ${it.label}")
+                    log.debug ("deleting ${it.label}")
                     deleteChildDevice(netId)
                 } catch (e) {
                     //already deleted?
@@ -154,12 +154,12 @@ def manageBridge(params) {
     def mac = params.mac
     def bridgeDevice = getChildDevice(mac)
     bridgeDevice.each {
-        debug it
+        log.debug it
     }
     def title = "${bridgeDevice.label} ${ip}"
 
     if (!bridgeDevice) {
-        debug("Bridge device not found?")
+        log.debug("Bridge device not found?")
         /* Error, bridge device doesn't exist? */
         return
     }
@@ -275,10 +275,10 @@ def linkButton(params) {
         }
     } else {
         /* link success! create bridge device */
-        debug "Bridge linked!"
-        debug("ssdp ${params.ssdpUSN}")
+        log.debug "Bridge linked!"
+        log.debug("ssdp ${params.ssdpUSN}")
         def bridge = getUnlinkedBridges().find{it?.key?.contains(params.ssdpUSN)}
-        debug("bridge ${bridge}")
+        log.debug("bridge ${bridge}")
         def d = addChildDevice("penner42", "Hue Bridge", bridge.value.mac, bridge.value.hub)
 
         d.sendEvent(name: "networkAddress", value: params.ip)
@@ -292,9 +292,9 @@ def linkButton(params) {
 
         bridge.value << ["bulbs" : [:], "groups" : [:], "scenes" : [:]]
         getLinkedBridges() << bridge
-        debug "Bridge added to linked list."
+        log.debug "Bridge added to linked list."
         getUnlinkedBridges().remove(params.ssdpUSN)
-        debug "Removed bridge from unlinked list."
+        log.debug "Removed bridge from unlinked list."
 
         dynamicPage(name: "linkButton", nextPage: "Bridges") {
             section("Hue Bridge ${params.ip}") {
@@ -367,7 +367,7 @@ def bridges() {
     // Send bridge discovery request every 15 seconds
     if ((state.bridgeRefreshCount % 5) == 1) {
         discoverHueBridges()
-        debug "Bridge discovery sent."
+        log.debug "Bridge discovery sent."
     } else {
         // if we're not sending bridge discovery, verify bridges instead
         verifyHueBridges()
@@ -410,7 +410,7 @@ def updated() {
 }
 
 def initialize() {
-    debug "initialize"
+    log.debug "initialize"
     unsubscribe()
     state.subscribed = false
     state.unlinked_bridges = [:]
@@ -475,7 +475,7 @@ def locationHandler(evt) {
  * HUE BRIDGE COMMANDS
  **/
 private discoverHueBridges() {
-    debug("Sending bridge discovery.")
+    log.debug("Sending bridge discovery.")
     sendHubCommand(new physicalgraph.device.HubAction("lan discovery urn:schemas-upnp-org:device:basic:1", physicalgraph.device.Protocol.LAN))
 }
 
@@ -489,7 +489,7 @@ private verifyHueBridges() {
 }
 
 private verifyHueBridge(String deviceNetworkId, String host) {
-    debug("Sending verify request for ${deviceNetworkId} (${host})")
+    log.debug("Sending verify request for ${deviceNetworkId} (${host})")
     sendHubCommand(new physicalgraph.device.HubAction([
             method: "GET",
             path: "/description.xml",
@@ -502,27 +502,27 @@ private verifyHueBridge(String deviceNetworkId, String host) {
  * HUE BRIDGE RESPONSES
  **/
 private processDiscoveryResponse(parsedEvent) {
-    debug("Discovered bridge ${parsedEvent.mac} (${convertHexToIP(parsedEvent.networkAddress)})")
+    log.debug("Discovered bridge ${parsedEvent.mac} (${convertHexToIP(parsedEvent.networkAddress)})")
 
     def bridge = getUnlinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)} ||
             getLinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)}
     if (bridge) {
         /* have already discovered this bridge */
-        debug("Previously found bridge discovered")
+        log.debug("Previously found bridge discovered")
     } else {
-        debug("Found new bridge.")
+        log.debug("Found new bridge.")
         state.unlinked_bridges << ["${parsedEvent.ssdpUSN}":parsedEvent]
     }
 }
 
 private processVerifyResponse(eventBody) {
-    debug("Processing verify response.")
+    log.debug("Processing verify response.")
     def body = new XmlSlurper().parseText(eventBody)
     if (body?.device?.modelName?.text().startsWith("Philips hue bridge")) {
-        debug(body?.device?.UDN?.text())
+        log.debug(body?.device?.UDN?.text())
         def bridge = getUnlinkedBridges().find({it?.key?.contains(body?.device?.UDN?.text())})
         if (bridge) {
-            debug("found bridge!")
+            log.debug("found bridge!")
             bridge.value << [name:body?.device?.friendlyName?.text(), serialNumber:body?.device?.serialNumber?.text(), verified: true]
         } else {
             log.error "/description.xml returned a bridge that didn't exist"
@@ -531,7 +531,7 @@ private processVerifyResponse(eventBody) {
 }
 
 private sendDeveloperReq(ip, mac) {
-    debug("Sending developer request to ${ip} (${mac})")
+    log.debug("Sending developer request to ${ip} (${mac})")
     def token = app.id
     sendHubCommand(new physicalgraph.device.HubAction([
             method: "POST",
@@ -575,5 +575,5 @@ def scaleLevel(level, fromST = false, max = 254) {
 }
 
 def parse(desc) {
-    debug("parse")
+    log.debug("parse")
 }

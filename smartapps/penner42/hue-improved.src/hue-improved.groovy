@@ -82,7 +82,7 @@ def createDevices(mac) {
                     } else {
                         d = addChildDevice("penner42", "Hue Bulb", it.key, hub, ["label": it.value])
                         ["bri", "sat", "reachable", "hue", "on"].each { p ->
-                            d.updateStatus("state", p, bridge.value.bulbs[it].state[p])
+                            d.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
                         }
                     }
                 } catch (e) {

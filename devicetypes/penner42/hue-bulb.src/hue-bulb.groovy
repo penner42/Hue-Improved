@@ -26,8 +26,13 @@ metadata {
         
         command "reset"
         command "updateStatus"
-        
+
  		attribute "colorTemp", "number"
+		attribute "bri", "number"
+		attribute "sat", "number"
+		attribute "reachable", "string"
+		attribute "hue", "number"
+		attribute "on", "string"
 	}
 
 	simulator {

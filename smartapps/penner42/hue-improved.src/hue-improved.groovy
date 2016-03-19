@@ -69,7 +69,6 @@ def missingDevices(mac) {
 def createDevices(mac) {
     def devicesToCreate = missingDevices(mac)
     def bridge = getBridge(mac)
-
     if (devicesToCreate.bulbs.size() > 0 || devicesToCreate.scenes.size() > 0 || devicesToCreate.groups.size() > 0) {
         devicesToCreate.bulbs.each {
             def d = getChildDevice(it.key)
@@ -79,9 +78,12 @@ def createDevices(mac) {
                     def bulbId = it.key.split("/")[1] - "BULB"
                     def type = getBridge(mac).value.bulbs[bulbId].type
                     if (type.equalsIgnoreCase("Dimmable light")) {
-                        addChildDevice("penner42", "Hue Lux Bulb", it.key, hub, ["label": it.value])
+                        d = addChildDevice("penner42", "Hue Lux Bulb", it.key, hub, ["label": it.value])
                     } else {
-                        addChildDevice("penner42", "Hue Bulb", it.key, hub, ["label": it.value])
+                        d = addChildDevice("penner42", "Hue Bulb", it.key, hub, ["label": it.value])
+                        ["bri", "sat", "reachable", "hue", "on"].each { p ->
+                            d.updateStatus("state", p, bridge.value.bulbs[it].state[p])
+                        }
                     }
                 } catch (e) {
                     log.debug ("Exception ${e}")

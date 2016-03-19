@@ -31,7 +31,7 @@ metadata {
     tiles(scale: 2) {
         multiAttributeTile(name:"rich-control"){
             tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "default", label: "Hue Bridge", action: "none", icon: "st.Lighting.light99-hue", backgroundColor: "#F3C200"
+                attributeState "default", label: "Hue Bridge", action: "", icon: "st.Lighting.light99-hue", backgroundColor: "#F3C200"
             }
         }
         standardTile("icon", "icon", width: 1, height: 1, canChangeIcon: false, inactiveLabel: true, canChangeBackground: false) {
@@ -41,9 +41,7 @@ metadata {
         details(["rich-control"])
     }
 }
-def none() {
 
-}
 def discoverBulbs() {
 	log.debug("Bridge discovering bulbs.")
 	def host = this.device.currentValue("networkAddress") + ":80"

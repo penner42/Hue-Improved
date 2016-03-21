@@ -85,7 +85,7 @@ def setLevel(level) {
 	log.debug "Setting level to ${lvl}."
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
@@ -94,7 +94,6 @@ def setLevel(level) {
 			],
 	        body: [bri: lvl]
 		])
-	)    
 }
 
 /**
@@ -106,7 +105,7 @@ def setColor(value) {
 	log.debug "Setting color to [${hue}, ${sat}]"
 
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
@@ -115,8 +114,6 @@ def setColor(value) {
 			],
 	        body: [hue: hue, sat: sat, bri: 254]
 		])
-	)    
-    
 }
 
 def setHue(hue) {
@@ -134,7 +131,7 @@ def setColorTemperature(temp) {
 	log.debug("Setting color temperature to ${temp}")
     def ct = Math.round(1000000/temp)
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
@@ -143,7 +140,6 @@ def setColorTemperature(temp) {
 			],
 	        body: [ct: ct]
 		])
-	)        
 }
 
 /** 
@@ -153,7 +149,6 @@ def on() {
 	log.debug("Turning on!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	//parent.sendHubCommand(
     return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -163,14 +158,12 @@ def on() {
 			],
 	        body: [on: true, bri: 254]
 		])
-//	)
 }
 
 def off() {
 	log.debug("Turning off!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	//parent.sendHubCommand(
     return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -180,7 +173,6 @@ def off() {
 			],
 	        body: [on: false]
 		])
-//	)
 }
 
 /** 

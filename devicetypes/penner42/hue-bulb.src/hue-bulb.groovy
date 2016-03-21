@@ -153,7 +153,8 @@ def on() {
 	log.debug("Turning on!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	//parent.sendHubCommand(
+    return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
@@ -162,14 +163,15 @@ def on() {
 			],
 	        body: [on: true, bri: 254]
 		])
-	)
+//	)
 }
 
 def off() {
 	log.debug("Turning off!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	//parent.sendHubCommand(
+    return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
@@ -178,7 +180,7 @@ def off() {
 			],
 	        body: [on: false]
 		])
-	)
+//	)
 }
 
 /** 

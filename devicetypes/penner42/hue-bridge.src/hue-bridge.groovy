@@ -15,83 +15,96 @@
  */
 metadata {
 	definition (name: "Hue Bridge", namespace: "penner42", author: "Alan Penner") {
-     	attribute "serialNumber", "string"
-        attribute "networkAddress", "string"
+		capability "Actuator"
+
+		attribute "serialNumber", "string"
+		attribute "networkAddress", "string"
 		attribute "username", "string"
 
-        command "discoverBulbs"
+/*        command "discoverBulbs"
 		command "discoverGroups"
         command "discoverScenes"
+        */
+		command "discoverItems"
 	}
 
 	simulator {
 		// TODO: define status and reply messages here
 	}
 
-    tiles(scale: 2) {
-        multiAttributeTile(name:"rich-control"){
-            tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "default", label: "Hue Bridge", action: "", icon: "st.Lighting.light99-hue", backgroundColor: "#F3C200"
-            }
-        }
-        standardTile("icon", "icon", width: 1, height: 1, canChangeIcon: false, inactiveLabel: true, canChangeBackground: false) {
-            state "default", label: "Hue Bridge", action: "", icon: "st.Lighting.light99-hue", backgroundColor: "#FFFFFF"
-        }
-        main (["icon"])
-        details(["rich-control"])
-    }
+	tiles(scale: 2) {
+		multiAttributeTile(name:"rich-control"){
+			tileAttribute ("device.serialNumber", key: "PRIMARY_CONTROL") {
+				attributeState "default", label: "Hue Bridge", icon: "st.Lighting.light99-hue", backgroundColor: "#F3C200"
+			}
+		}
+		standardTile("icon", "icon", width: 1, height: 1, canChangeIcon: false, inactiveLabel: true, canChangeBackground: false) {
+			state "default", label: "Hue Bridge", icon: "st.Lighting.light99-hue", backgroundColor: "#FFFFFF"
+		}
+		main (["icon"])
+		details(["rich-control"])
+	}
+}
+
+def discoverItems(count) {
+	if (count == 0) {
+		discoverBulbs()
+	} else if (count == 1) {
+		discoverScenes()
+	} else if(count == 2) {
+		discoverGroups()
+	}
 }
 
 def discoverBulbs() {
 	log.debug("Bridge discovering bulbs.")
 	def host = this.device.currentValue("networkAddress") + ":80"
-    def username = this.device.currentValue("username")
+	def username = this.device.currentValue("username")
 
 	def result = new physicalgraph.device.HubAction(
-        method: "GET",
-        path: "/api/${username}/lights",
-        headers: [
-            HOST: host
-		]
+			method: "GET",
+			path: "/api/${username}/lights",
+			headers: [
+					HOST: host
+			]
 	)
-    return result
+	return result
 }
 
 def discoverScenes() {
 	log.debug("Bridge discovering scenes.")
 	def host = "${this.device.currentValue("networkAddress")}:80"
-    def username = this.device.currentValue("username")
+	def username = this.device.currentValue("username")
 
 	def result = new physicalgraph.device.HubAction(
-        method: "GET",
-        path: "/api/${username}/scenes",
-        headers: [
-            HOST: host
-		]
+			method: "GET",
+			path: "/api/${username}/scenes",
+			headers: [
+					HOST: host
+			]
 	)
-    return result
+	return result
 }
 
 def discoverGroups() {
 	log.debug("Bridge discovering groups.")
 	def host = "${this.device.currentValue("networkAddress")}:80"
-    def username = this.device.currentValue("username")
+	def username = this.device.currentValue("username")
 
 	def result = new physicalgraph.device.HubAction(
-        method: "GET",
-        path: "/api/${username}/groups",
-        headers: [
-            HOST: host
-		]
+			method: "GET",
+			path: "/api/${username}/groups",
+			headers: [
+					HOST: host
+			]
 	)
-    return result
+	return result
 }
 
 // parse events into attributes
 def parse(String description) {
-	log.debug("parse")
 	def parsedEvent = parseLanMessage(description)
-    if (parsedEvent.headers && parsedEvent.body) {
+	if (parsedEvent.headers && parsedEvent.body) {
 		def headerString = parsedEvent.headers.toString()
 		if (headerString.contains("application/json")) {
 			def body = new groovy.json.JsonSlurper().parseText(parsedEvent.body)
@@ -137,8 +150,8 @@ def parse(String description) {
 				return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: [bulbs, scenes, groups, bridge.value.mac])
 			}
 		} else {
-        	log.debug("Unrecognized messsage: ${parsedEvent.body}")
-        }
+			log.debug("Unrecognized messsage: ${parsedEvent.body}")
+		}
 	}
-    return []
+	return []
 }

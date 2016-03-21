@@ -18,7 +18,7 @@ definition(
         namespace: "penner42",
         author: "Alan Penner",
         description: "Hue ",
-        category: "My Apps",
+        category: "SmartThings Labs",
         iconUrl: "https://s3.amazonaws.com/smartapp-icons/Partner/hue.png",
         iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
         singleInstance: true
@@ -66,27 +66,61 @@ def missingDevices(mac) {
     return devicesToCreate
 }
 
-def createDevices(mac) {
-    def devicesToCreate = missingDevices(mac)
+def extraDevices(mac) {
+    def selectedBulbs = settings."${mac}-selectedBulbs" ?: []
+    def selectedScenes = settings."${mac}-selectedScenes" ?: []
+    def selectedGroups = settings."${mac}-selectedGroups" ?: []
+
+    def devicesToRemove = ["bulbs":[:], "scenes":[:], "groups":[:]]
+
+    def devices = getChildDevices()
+    devices.each {
+        def devId = it.deviceNetworkId
+        if (devId.contains(mac) && devId.contains("/")) {
+            def whichDevices = selectedBulbs
+            def removeList = devicesToRemove.bulbs
+            if (devId.contains("SCENE")) {
+                whichDevices = selectedScenes
+                removeList = devicesToRemove.scenes
+            } else if (devId.contains("GROUP")) {
+                whichDevices = selectedGroups
+                removeList = devicesToRemove.groups
+            }
+            def id = devId.split("/")[1] - "GROUP" - "SCENE" - "BULB"
+            if (!(whichDevices.contains(id))) {
+                removeList << ["${devId}": it.label ]
+            }
+        }
+    }
+    return devicesToRemove
+}
+
+def createDevices(mac, devices = null) {
+    def devicesToCreate = devices ?: missingDevices(mac)
     def bridge = getBridge(mac)
+    log.debug(devicestoCreate)
     if (devicesToCreate.bulbs.size() > 0 || devicesToCreate.scenes.size() > 0 || devicesToCreate.groups.size() > 0) {
         devicesToCreate.bulbs.each {
             def d = getChildDevice(it.key)
             if (!d) {
-                try {
-                    log.debug("creating ${it.key} - ${it.value}")
-                    def bulbId = it.key.split("/")[1] - "BULB"
-                    def type = getBridge(mac).value.bulbs[bulbId].type
-                    if (type.equalsIgnoreCase("Dimmable light")) {
-                        d = addChildDevice("penner42", "Hue Lux Bulb", it.key, hub, ["label": it.value])
-                    } else {
-                        d = addChildDevice("penner42", "Hue Bulb", it.key, hub, ["label": it.value])
+                log.debug("creating ${it.key} - ${it.value}")
+                def bulbId = it.key.split("/")[1] - "BULB"
+                def type = getBridge(mac).value.bulbs[bulbId].type
+                if (type.equalsIgnoreCase("Dimmable light")) {
+                    try {
+                        d = addChildDevice("penner42", "Hue Lux Bulb", it.key, bridge.value.hub, ["label": it.value])
+                    } catch (grails.validation.ValidationException e) {
+                        log.debug "${it.key} already created."
+                    }
+                } else {
+                    try {
+                        d = addChildDevice("penner42", "Hue Bulb", it.key, bridge.value.hub, ["label": it.value])
                         ["bri", "sat", "reachable", "hue", "on"].each { p ->
                             d.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
                         }
+                    } catch (grails.validation.ValidationException e) {
+                        log.debug "${it.key} already created."
                     }
-                } catch (e) {
-                    log.debug ("Exception ${e}")
                 }
             }
         }
@@ -95,7 +129,7 @@ def createDevices(mac) {
             if (!d) {
                 try {
                     log.debug("creating ${it.key} - ${it.value}")
-                    addChildDevice("penner42", "Hue Scene", it.key, hub, ["label": it.value])
+                    addChildDevice("penner42", "Hue Scene", it.key, bridge.value.hub, ["label": it.value])
                 } catch (e) {
                     log.debug ("Exception ${e}")
                 }
@@ -106,7 +140,7 @@ def createDevices(mac) {
             if (!d) {
                 try {
                     log.debug("creating ${it.key} - ${it.value}")
-                    addChildDevice("penner42", "Hue Group", it.key, hub, ["label": it.value])
+                    addChildDevice("penner42", "Hue Group", it.key, bridge.value.hub, ["label": it.value])
                 } catch (e) {
                     log.debug ("Exception ${e}")
                 }
@@ -115,29 +149,15 @@ def createDevices(mac) {
     }
 }
 
-def removeDevices(mac) {
-    def selectedBulbs = settings."${mac}-selectedBulbs" ?: []
-    def selectedScenes = settings."${mac}-selectedScenes" ?: []
-    def selectedGroups = settings."${mac}-selectedGroups" ?: []
-
-    def devices = getChildDevices()
-    devices.each {
-        def netId = it.deviceNetworkId
-        if (netId.contains(mac) && netId.contains("/")) {
-            def whichDevices = selectedBulbs
-            if (netId.contains("SCENE")) {
-                whichDevices = selectedScenes
-            } else if (netId.contains("GROUP")) {
-                whichDevices = selectedGroups
-            }
-            def id = netId.split("/")[1] - "GROUP" - "SCENE" - "BULB"
-            if (!(whichDevices.contains(id))) {
-                try {
-                    log.debug ("deleting ${it.label}")
-                    deleteChildDevice(netId)
-                } catch (e) {
-                    //already deleted?
-                }
+def removeDevices(mac, devices = null) {
+    def devicesToRemove = devices ?: extraDevices(mac)
+    devicesToRemove.each { b->
+        b.value.each {
+            log.debug "removing ${it.key} - ${it.value}"
+            try {
+                deleteChildDevice(it.key)
+            } catch (physicalgraph.exception.NotFoundException e) {
+                log.debug("${it.key} already deleted.")
             }
         }
     }
@@ -155,10 +175,8 @@ def manageBridge(params) {
     def ip = convertHexToIP(bridge.value.networkAddress)
     def mac = params.mac
     def bridgeDevice = getChildDevice(mac)
-    bridgeDevice.each {
-        log.debug it
-    }
     def title = "${bridgeDevice.label} ${ip}"
+    def refreshInterval = 2
 
     if (!bridgeDevice) {
         log.debug("Bridge device not found?")
@@ -166,32 +184,41 @@ def manageBridge(params) {
         return
     }
 
-    removeDevices(mac)
-    createDevices(mac)
+    def devicesToCreate = missingDevices(mac)
+    def devicesToRemove = extraDevices(mac)
+    if (devicesToCreate.bulbs.size() > 0 || devicesToCreate.scenes.size() > 0 || devicesToCreate.groups.size() > 0 ||
+            devicesToRemove.bulbs.size() > 0 || devicesToRemove.scenes.size() > 0 || devicesToRemove.groups.size() > 0 ) {
+        removeDevices(mac, devicesToRemove)
+        createDevices(mac, devicesToCreate)
+    }
 
     int itemRefreshCount = !state.itemRefreshCount ? 0 : state.itemRefreshCount as int
     if (!state.itemDiscoveryComplete) {
         state.itemRefreshCount = itemRefreshCount + 1
     }
 
+    def discoveryPagetext = ["Discovering bulbs...", "Discovering scenes...", "Discovering groups..."]
+
     /* resend request if we haven't received a response in 4 seconds */
     if ((!state.inItemDiscovery && !state.itemDiscoveryComplete) || (state.itemRefreshCount == 3)) {
-        state.itemDiscoveryComplete = false
-        state.inItemDiscovery = mac
-
-        if (state.numDiscoveryResponses == 0) {
-            bridgeDevice.discoverBulbs();
-            state.itemRefreshCount = 0
-        } else if (state.numDiscoveryResponses == 1) {
-            bridgeDevice.discoverScenes();
-            state.itemRefreshCount = 0
-        } else if (state.numDiscoveryResponses == 2) {
-            bridgeDevice.discoverGroups();
-            state.itemRefreshCount = 0
-        } else if (state.numDiscoveryResponses == 3) {
+        if (state.numDiscoveryResponses == 3) {
             state.itemDiscoveryComplete = true
             state.numDiscoveryResponses = 0
             state.itemRefreshCount = 0
+        } else {
+            state.itemDiscoveryComplete = false
+            state.inItemDiscovery = mac
+            bridgeDevice.discoverItems(state.numDiscoveryResponses)
+            state.itemRefreshCount = 0
+            return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
+                section(discoveryPagetext[state.numDiscoveryResponses]) {
+                }
+            }
+        }
+    } else if (state.inItemDiscovery) {
+        return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
+            section(discoveryPagetext[state.numDiscoveryResponses]) {
+            }
         }
     }
 
@@ -214,7 +241,6 @@ def manageBridge(params) {
     def numGroups = groupList.size() ?: 0
 
     def paragraphText = ""
-    def refreshInterval = 3
     if (state.itemDiscoveryComplete) {
         refreshInterval = 0
         paragraphText = "Item discovery complete! Bulbs, groups, and scenes listed below. If any items are missing, please tap back and try again.\n\n" +
@@ -281,7 +307,7 @@ def linkButton(params) {
         log.debug("ssdp ${params.ssdpUSN}")
         def bridge = getUnlinkedBridges().find{it?.key?.contains(params.ssdpUSN)}
         log.debug("bridge ${bridge}")
-        def d = addChildDevice("penner42", "Hue Bridge", bridge.value.mac, bridge.value.hub)
+        def d = addChildDevice("penner42", "Hue Bridge", bridge.value.mac, bridge.value.hub, [label: "Hue Bridge (${params.ip})"])
 
         d.sendEvent(name: "networkAddress", value: params.ip)
         d.sendEvent(name: "serialNumber", value: bridge.value.serialNumber)
@@ -354,8 +380,7 @@ def bridges() {
     state.inItemDiscovery = null
     state.itemDiscoveryComplete = false
     state.numDiscoveryResponses = 0
-    state.createRefreshCount = 0
-    state.waitingForCreation = ""
+    state.creatingDevices = false
 
     int bridgeRefreshCount = !state.bridgeRefreshCount ? 0 : state.bridgeRefreshCount as int
     state.bridgeRefreshCount = bridgeRefreshCount + 1
@@ -402,7 +427,7 @@ def installed() {
 }
 
 def uninstalled() {
-    log.debug "uninstalling"
+    log.debug "Uninstalling"
     state.installed = false
 }
 
@@ -412,16 +437,18 @@ def updated() {
 }
 
 def initialize() {
-    log.debug "initialize"
+    log.debug "Initialize."
     unsubscribe()
     state.subscribed = false
     state.unlinked_bridges = [:]
+    state.bridgeRefreshCount = 0
     state.installed = true
 
     state.linked_bridges.each {
         def d = getChildDevice(it.value.mac)
         subscribe(d, "itemDiscovery", itemDiscoveryHandler)
     }
+    subscribe(location, null, locationHandler, [filterEvents:false])
 }
 
 def itemDiscoveryHandler(evt) {
@@ -443,11 +470,13 @@ def itemDiscoveryHandler(evt) {
 }
 
 def locationHandler(evt) {
+    log.debug("location handler")
     def description = evt.description
     def hub = evt?.hubId
-    def parsedEvent = parseLanMessage(description)
 
+    def parsedEvent = parseLanMessage(description)
     parsedEvent << ["hub":hub]
+
     if (parsedEvent?.ssdpTerm?.contains("urn:schemas-upnp-org:device:basic:1")) {
         /* SSDP response */
         processDiscoveryResponse(parsedEvent)

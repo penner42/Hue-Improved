@@ -35,6 +35,7 @@ preferences {
 def refreshItems() {
 	def bridge = getBridge(state.params.mac)
 	bridge.value.itemsDiscovered = false
+    state.itemDiscoveryComplete = false
 	return dynamicPage(name:"refreshItems", title: "Rediscover Items", nextPage: "manageBridge") {
 		section() {
         	paragraph "Item rediscovery started. Please tap next."

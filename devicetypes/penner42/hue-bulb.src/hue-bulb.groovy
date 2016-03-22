@@ -205,6 +205,7 @@ def reset() {
 }
 
 def updateStatus(action, param, val) {
+	log.debug "updating status: ${param}:${val}"
 	if (action == "state") {
 		switch(param) {
         	case "on":

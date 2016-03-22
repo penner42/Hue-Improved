@@ -29,6 +29,17 @@ preferences {
     page(name:"linkButton", content: "linkButton")
     page(name:"linkBridge", content: "linkBridge")
     page(name:"manageBridge", content: "manageBridge")
+    page(name:"refreshItems", content: "refreshItems")
+}
+
+def refreshItems() {
+	def bridge = getBridge(state.params.mac)
+	bridge.value.itemsDiscovered = false
+	return dynamicPage(name:"refreshItems", title: "Rediscover Items", nextPage: "manageBridge") {
+		section() {
+        	paragraph "Item rediscovery started. Please tap next."
+        }
+	}
 }
 
 def missingDevices(mac) {
@@ -200,15 +211,18 @@ def manageBridge(params) {
         state.itemRefreshCount = itemRefreshCount + 1
     }
 
-    def discoveryPagetext = ["Discovering bulbs...", "Discovering scenes...", "Discovering groups..."]
+    def discoveryPagetext = ["Discovering bulbs...", "Discovering bulbs... done\nDiscovering scenes...", "Discovering bulbs... done\nDiscovering scenes... done.\nDiscovering groups..."]
 
     /* resend request if we haven't received a response in 4 seconds */
-    if ((!state.inItemDiscovery && !state.itemDiscoveryComplete) || (state.itemRefreshCount == 3)) {
+    if (!bridge.value.itemsDiscovered && ((!state.inItemDiscovery && !state.itemDiscoveryComplete) || (state.itemRefreshCount == 3))) {
         if (state.numDiscoveryResponses == 3) {
             state.itemDiscoveryComplete = true
             state.numDiscoveryResponses = 0
             state.itemRefreshCount = 0
+            bridge.value.itemsDiscovered = true
         } else {
+        	/* disable device sync while doing discovery */
+        	unschedule() 
             state.itemDiscoveryComplete = false
             state.inItemDiscovery = mac
             bridgeDevice.discoverItems(state.numDiscoveryResponses)
@@ -224,7 +238,9 @@ def manageBridge(params) {
             }
         }
     }
-
+	/* discovery complete, re-enable device sync */
+	runEvery5Minutes(doDeviceSync)
+    
     def bulbList = [:]
     def sceneList = [:]
     def groupList = [:]
@@ -243,24 +259,27 @@ def manageBridge(params) {
     def numScenes = sceneList.size() ?: 0
     def numGroups = groupList.size() ?: 0
 
-    def paragraphText = ""
+/*    def paragraphText = ""
     if (state.itemDiscoveryComplete) {
         refreshInterval = 0
-        paragraphText = "Item discovery complete! Bulbs, groups, and scenes listed below. If any items are missing, please tap back and try again.\n\n" +
-                "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
+//        paragraphText = "Item discovery complete! Bulbs, groups, and scenes listed below. If any items are missing, please tap back and try again.\n\n" +
+          paragraphText = "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
 
     } else {
         refreshInterval = 2
-        paragraphText =  "Starting discovery of Bulbs, Scenes, and Groups. This can take some time, results will appear below.\n\n" +
-                "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
+        //paragraphText =  "Starting discovery of Bulbs, Scenes, and Groups. This can take some time, results will appear below.\n\n" +
+		paragraphText = "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
     }
-
-    dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: true) {
-        section("${paragraphText}") {
+*/
+	def paragraphText = "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
+    dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", /* refreshInterval: refreshInterval ,*/ install: true) {
+        section(paragraphText) {
+			href(name:"Refresh items", page:"refreshItems", title:"", description: "Refresh discovered items")
             input "${mac}-selectedBulbs", "enum", required:false, title:"Select Hue Bulbs (${numBulbs} found)", multiple:true, submitOnChange: true, options:bulbList.sort{it.value}
             input "${mac}-selectedScenes", "enum", required:false, title:"Select Hue Scenes (${numScenes} found)", multiple:true, submitOnChange: true, options:sceneList.sort{it.value}
             input "${mac}-selectedGroups", "enum", required:false, title:"Select Hue Groups (${numGroups} found)", multiple:true, submitOnChange: true, options:groupList.sort{it.value}
-        }
+			href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
+		}
     }
 }
 
@@ -447,6 +466,7 @@ def initialize() {
     state.bridgeRefreshCount = 0
     state.installed = true
 
+	doDeviceSync()
 	runEvery5Minutes(doDeviceSync)
 
 	state.linked_bridges.each {
@@ -476,11 +496,11 @@ def itemDiscoveryHandler(evt) {
 	    state.inItemDiscovery = false
 	}
     
+    /* update existing devices */
 	def devices = getChildDevices()
 	devices.each {
     	def devId = it.deviceNetworkId
 	    if (devId.contains(mac) && devId.contains("/")) {
-			log.debug("updating ${it.deviceNetworkId}")
     		if (it.deviceNetworkId.contains("BULB")) {
                 def bulbId = it.deviceNetworkId.split("/")[1] - "BULB"
 				def type = bridge.value.bulbs[bulbId].type
@@ -590,7 +610,7 @@ private processVerifyResponse(eventBody) {
         def bridge = getUnlinkedBridges().find({it?.key?.contains(body?.device?.UDN?.text())})
         if (bridge) {
             log.debug("found bridge!")
-            bridge.value << [name:body?.device?.friendlyName?.text(), serialNumber:body?.device?.serialNumber?.text(), verified: true]
+            bridge.value << [name:body?.device?.friendlyName?.text(), serialNumber:body?.device?.serialNumber?.text(), verified: true, itemsDiscovered: false]
         } else {
             log.error "/description.xml returned a bridge that didn't exist"
         }

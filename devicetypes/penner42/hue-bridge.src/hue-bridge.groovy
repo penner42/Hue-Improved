@@ -21,10 +21,10 @@ metadata {
 		attribute "networkAddress", "string"
 		attribute "username", "string"
 
-/*        command "discoverBulbs"
+        command "discoverBulbs"
 		command "discoverGroups"
         command "discoverScenes"
-        */
+
 		command "discoverItems"
 	}
 
@@ -48,11 +48,11 @@ metadata {
 
 def discoverItems(count) {
 	if (count == 0) {
-		discoverBulbs()
+		return discoverBulbs()
 	} else if (count == 1) {
-		discoverScenes()
+		return discoverScenes()
 	} else if(count == 2) {
-		discoverGroups()
+		return discoverGroups()
 	}
 }
 
@@ -68,6 +68,7 @@ def discoverBulbs() {
 					HOST: host
 			]
 	)
+    log.debug(result)
 	return result
 }
 
@@ -103,6 +104,7 @@ def discoverGroups() {
 
 // parse events into attributes
 def parse(String description) {
+	log.debug("parse: ${description}")
 	def parsedEvent = parseLanMessage(description)
 	if (parsedEvent.headers && parsedEvent.body) {
 		def headerString = parsedEvent.headers.toString()

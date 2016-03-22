@@ -68,7 +68,6 @@ def discoverBulbs() {
 					HOST: host
 			]
 	)
-    log.debug(result)
 	return result
 }
 
@@ -104,7 +103,6 @@ def discoverGroups() {
 
 // parse events into attributes
 def parse(String description) {
-	log.debug("parse: ${description}")
 	def parsedEvent = parseLanMessage(description)
 	if (parsedEvent.headers && parsedEvent.body) {
 		def headerString = parsedEvent.headers.toString()

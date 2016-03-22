@@ -120,12 +120,17 @@ def setColor(value) {
 }
 
 def setHue(hue) {
-
+	def sat = this.device.currentValue("sat") ?: 56
+    dev level = this.device.currentValue("level") ?: 100
+    setColor([level:level, saturation:sat, hue:hue])
 }
 
 def setSaturation(sat) {
-
+	def hue = this.device.currentValue("hue") ?: 23
+    dev level = this.device.currentValue("level") ?: 100
+    setColor([level:level, saturation:sat, hue:hue])
 }
+
 
 /**
  * capability.colorTemperature 
@@ -185,14 +190,14 @@ def off() {
  * capability.polling
  **/
 def poll() {
-
+	refresh()
 }
 
 /**
  * capability.refresh
  **/
 def refresh() {
-
+	parent.refresh()
 }
 
 def reset() {

@@ -109,6 +109,9 @@ def createDevices(mac, devices = null) {
                 if (type.equalsIgnoreCase("Dimmable light")) {
                     try {
                         d = addChildDevice("penner42", "Hue Lux Bulb", it.key, bridge.value.hub, ["label": it.value])
+                        ["bri", "reachable", "on"].each { p -> 
+                        	d.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
+						}
                     } catch (grails.validation.ValidationException e) {
                         log.debug "${it.key} already created."
                     }
@@ -374,7 +377,6 @@ def bridges() {
         }
     }
 
-    state.debug_on = true
     /* clear temporary stuff from other pages */
     state.params = [:]
     state.inItemDiscovery = null
@@ -439,12 +441,15 @@ def updated() {
 def initialize() {
     log.debug "Initialize."
     unsubscribe()
+    unschedule()
     state.subscribed = false
     state.unlinked_bridges = [:]
     state.bridgeRefreshCount = 0
     state.installed = true
 
-    state.linked_bridges.each {
+	runEvery5Minutes(doDeviceSync)
+
+	state.linked_bridges.each {
         def d = getChildDevice(it.value.mac)
         subscribe(d, "itemDiscovery", itemDiscoveryHandler)
     }
@@ -464,13 +469,36 @@ def itemDiscoveryHandler(evt) {
 
     /* item discovery is done when numDiscoveryResponses == 3
      * to prevent race conditions, we don't start searching for the next item type until we finish the current one
+     * we can get here if state.inItemDiscovery is false during scheduled sync; don't update these values if so
      */
-    state.numDiscoveryResponses = state.numDiscoveryResponses + 1
-    state.inItemDiscovery = false
+	if (state.inItemDiscovery) {
+	    state.numDiscoveryResponses = state.numDiscoveryResponses + 1
+	    state.inItemDiscovery = false
+	}
+    
+	def devices = getChildDevices()
+	devices.each {
+    	def devId = it.deviceNetworkId
+	    if (devId.contains(mac) && devId.contains("/")) {
+			log.debug("updating ${it.deviceNetworkId}")
+    		if (it.deviceNetworkId.contains("BULB")) {
+                def bulbId = it.deviceNetworkId.split("/")[1] - "BULB"
+				def type = bridge.value.bulbs[bulbId].type
+                if (type.equalsIgnoreCase("Dimmable light")) {
+					["bri", "reachable", "on"].each { p -> 
+                    	it.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
+					}
+                } else {
+					["bri", "sat", "reachable", "hue", "on"].each { p -> 
+                    	it.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
+					}
+                }
+            }
+	    }    	
+    }
 }
 
 def locationHandler(evt) {
-    log.debug("location handler")
     def description = evt.description
     def hub = evt?.hubId
 
@@ -535,11 +563,19 @@ private verifyHueBridge(String deviceNetworkId, String host) {
 private processDiscoveryResponse(parsedEvent) {
     log.debug("Discovered bridge ${parsedEvent.mac} (${convertHexToIP(parsedEvent.networkAddress)})")
 
-    def bridge = getUnlinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)} ||
-            getLinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)}
+    def bridge = getUnlinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)} 
+    if (!bridge) { bridge = getLinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)} }
     if (bridge) {
         /* have already discovered this bridge */
         log.debug("Previously found bridge discovered")
+        /* update IP address */
+        if (parsedEvent.networkAddress != bridge.value.networkAddress) {
+        	bridge.value.networkAddress = parsedEvent.networkAddress
+        	def bridgeDev = getChildDevice(parsedEvent.mac)
+            if (bridgeDev) {
+            	bridgeDev.sendEvent(name: "networkAddress", value: convertHexToIP(bridge.value.networkAddress))
+            }
+        }
     } else {
         log.debug("Found new bridge.")
         state.unlinked_bridges << ["${parsedEvent.ssdpUSN}":parsedEvent]
@@ -607,4 +643,23 @@ def scaleLevel(level, fromST = false, max = 254) {
 
 def parse(desc) {
     log.debug("parse")
+}
+
+def doDeviceSync() {
+	log.debug "Doing Hue Device Sync!"
+    state.doingSync = true
+    try {
+		subscribe(location, null, locationHandler, [filterEvents:false])
+    } catch (e) {
+ 	}
+	state.linked_bridges.each {
+		def bridgeDev = getChildDevice(it.value.mac)
+        if (bridgeDev) {
+			bridgeDev.discoverItems(0)
+			bridgeDev.discoverItems(1)
+			bridgeDev.discoverItems(2)            
+        }
+	}
+	discoverHueBridges()
+    state.doingSync = false
 }

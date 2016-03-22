@@ -130,7 +130,7 @@ def createDevices(mac, devices = null) {
                 } else {
                     try {
                         d = addChildDevice("penner42", "Hue Bulb", it.key, bridge.value.hub, ["label": it.value])
-                        ["bri", "sat", "reachable", "hue", "on"].each { p ->
+                        ["bri", "sat", "reachable", "hue", "on", "ct"].each { p ->
                             d.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
                         }
                     } catch (grails.validation.ValidationException e) {

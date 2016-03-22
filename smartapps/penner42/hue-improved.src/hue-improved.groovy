@@ -18,7 +18,7 @@ definition(
         namespace: "penner42",
         author: "Alan Penner",
         description: "Hue ",
-        category: "SmartThings Labs",
+        category: "My Apps",
         iconUrl: "https://s3.amazonaws.com/smartapp-icons/Partner/hue.png",
         iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
         singleInstance: true

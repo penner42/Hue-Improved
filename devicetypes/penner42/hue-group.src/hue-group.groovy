@@ -87,7 +87,7 @@ def setLevel(level) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [bri: lvl]
+	        body: [on:true, bri: lvl]
 		])
 	)    
 }
@@ -114,7 +114,7 @@ def setColor(value) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [hue: hue, sat: sat, bri: bri]
+	        body: [on:true, hue: hue, sat: sat, bri: bri]
 		])
 	)    
 }
@@ -146,7 +146,7 @@ def setColorTemperature(temp) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [ct: ct]
+	        body: [on:true, ct: ct]
 		])
 	)        
 }

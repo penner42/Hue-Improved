@@ -93,7 +93,7 @@ def setLevel(level) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [bri: lvl]
+	        body: [on: true, bri: lvl]
 		])
 	)    
 }
@@ -114,18 +114,22 @@ def setColor(value) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [hue: hue, sat: sat, bri: 254]
+	        body: [on:true, hue: hue, sat: sat, bri: 254]
 		])
 	)    
     
 }
 
 def setHue(hue) {
-
+	def sat = this.device.currentValue("sat") ?: 56
+    dev level = this.device.currentValue("level") ?: 100
+    setColor([level:level, saturation:sat, hue:hue])
 }
 
 def setSaturation(sat) {
-
+	def hue = this.device.currentValue("hue") ?: 23
+    dev level = this.device.currentValue("level") ?: 100
+    setColor([level:level, saturation:sat, hue:hue])
 }
 
 /**
@@ -142,7 +146,7 @@ def setColorTemperature(temp) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [ct: ct]
+	        body: [on:true, ct: ct]
 		])
 	)        
 }

@@ -74,6 +74,11 @@ def off() {
  **/
 def push() {
 	log.debug("Turning on!")
+    
+	sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
+	sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
+	sendEvent(name: "momentary", value: "pushed", isStateChange: true)    
+    
     def commandData = parent.getCommandData(this.device.deviceNetworkId)
 	log.debug(commandData)
     parent.sendHubCommand(new physicalgraph.device.HubAction(

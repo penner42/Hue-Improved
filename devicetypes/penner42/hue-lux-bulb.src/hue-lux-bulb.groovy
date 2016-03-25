@@ -108,7 +108,7 @@ def setLevel(level) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [bri: lvl]
+	        body: [on:true, bri: lvl]
 		])
 }
 

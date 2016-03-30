@@ -65,32 +65,15 @@ def on() {
 	log.debug("Turning on!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on: true, bri: 254]
-		])
-	)
+    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/lights/${commandData.deviceId}/state", [on: true, bri: 254], "commandResponse")
+
 }
 
 def off() {
 	log.debug("Turning off!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on: false]
-		])
-	)
+    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/lights/${commandData.deviceId}/state", [on: false], "commandResponse")
 }
 
 /** 
@@ -101,15 +84,7 @@ def setLevel(level) {
 	log.debug "Setting level to ${lvl}."
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	return new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on:true, bri: lvl]
-		])
+	return parent.putHubAction(commandData.ip, "/api/${commandData.username}/lights/${commandData.deviceId}/state", [on: true, bri: lvl], "commandResponse")
 }
 
 /** 
@@ -123,7 +98,26 @@ def poll() {
  * capability.refresh
  **/
 def refresh() {
-	parent.refresh()
+	parent.doDeviceSync()
+}
+
+def commandResponse(resp) {
+	def parsedEvent = parseLanMessage(resp?.description)
+	if (parsedEvent.headers && parsedEvent.body) {
+		def body = new groovy.json.JsonSlurper().parseText(parsedEvent.body)
+        body.each { 
+			if (it.success) {
+            	it.success.each { k,v -> 
+					def param = k.split("/")[-1]
+                    updateStatus("state", param, v)
+				}
+			} else if (it.error != null) {
+				log.debug("Error: ${it}") 
+	        } else {
+				log.debug("Unknown response: ${it}")        
+	        }
+		}
+	}
 }
 
 def updateStatus(action, param, val) {

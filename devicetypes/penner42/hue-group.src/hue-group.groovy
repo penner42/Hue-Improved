@@ -80,55 +80,33 @@ def setLevel(level) {
 	log.debug "Setting level to ${lvl}."
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on:true, bri: lvl]
-		])
-	)    
+	return parent.putHubAction(commandData.ip, "/api/${commandData.username}/groups/${commandData.deviceId}/action", [on: true, bri: lvl], "commandResponse")
 }
 
 /**
  * capability.colorControl 
  **/
 def setColor(value) {
-	log.debug(value)
-	def hue = parent.scaleLevel(value.hue, true, 65535) 
+	def hue = parent.scaleLevel(value.hue, true, 65535)
     def sat = parent.scaleLevel(value.saturation, true, 254)
-    def bri
-    if (device.currentValue("level")) {
-	    bri = parent.scaleLevel(device.currentValue("level"), true, 254)
-	} else {
-    	bri = parent.scaleLevel(100, true, 254)
-    }
-	log.debug "Setting color to [${hue}, ${sat}, ${bri}]"
+	def bri = value.bri ?: this.device.currentValue("level")
+    bri = parent.scaleLevel(bri, true, 254)
+
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on:true, hue: hue, sat: sat, bri: bri]
-		])
-	)    
+    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/groups/${commandData.deviceId}/action", 
+    						   [on: true, bri: bri, hue: hue, sat: sat], "commandResponse")
 }
 
 def setHue(hue) {
 	def sat = this.device.currentValue("sat") ?: 56
     dev level = this.device.currentValue("level") ?: 100
-    setColor([level:level, saturation:sat, hue:hue])
+    setColor([bri:level, saturation:sat, hue:hue])
 }
 
 def setSaturation(sat) {
 	def hue = this.device.currentValue("hue") ?: 23
     dev level = this.device.currentValue("level") ?: 100
-    setColor([level:level, saturation:sat, hue:hue])
+    setColor([bri:level, saturation:sat, hue:hue])
 }
 
 
@@ -139,16 +117,7 @@ def setColorTemperature(temp) {
 	log.debug("Setting color temperature to ${temp}")
     def ct = Math.round(1000000/temp)
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on:true, ct: ct]
-		])
-	)        
+    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/groups/${commandData.deviceId}/action", [on: true, ct: ct], "commandResponse")
 }
 
 /** 
@@ -158,32 +127,14 @@ def on() {
 	log.debug("Turning on!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on: true, bri: 254]
-		])
-	)
+    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/groups/${commandData.deviceId}/action", [on: true, bri: 254], "commandResponse")
 }
 
 def off() {
 	log.debug("Turning off!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on: false]
-		])
-	)
+    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/groups/${commandData.deviceId}/action", [on: false], "commandResponse")
 }
 
 /** 
@@ -202,11 +153,31 @@ def refresh() {
 
 def reset() {
 	log.debug "Resetting color."
-    def value = [level:100, hex:"#90C638", saturation:56, hue:23]
+    def value = [bri:100, saturation:56, hue:23]
     setColor(value)
 }
 
+def commandResponse(resp) {
+	def parsedEvent = parseLanMessage(resp?.description)
+	if (parsedEvent.headers && parsedEvent.body) {
+		def body = new groovy.json.JsonSlurper().parseText(parsedEvent.body)
+        body.each { 
+			if (it.success) {
+            	it.success.each { k,v -> 
+					def param = k.split("/")[-1]
+                    updateStatus("action", param, v)
+				}
+			} else if (it.error != null) {
+				log.debug("Error: ${it}") 
+	        } else {
+				log.debug("Unknown response: ${it}")        
+	        }
+		}
+	}
+}
+
 def updateStatus(action, param, val) {
+	log.debug "updating status: ${param}:${val}"
 	if (action == "action") {
 		switch(param) {
         	case "on":

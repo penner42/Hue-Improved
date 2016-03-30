@@ -24,8 +24,6 @@ metadata {
         command "discoverBulbs"
 		command "discoverGroups"
         command "discoverScenes"
-
-		command "discoverItems"
 	}
 
 	simulator {
@@ -46,59 +44,46 @@ metadata {
 	}
 }
 
-def discoverItems(count) {
-	if (count == 0) {
-		return discoverBulbs()
-	} else if (count == 1) {
-		return discoverScenes()
-	} else if(count == 2) {
-		return discoverGroups()
-	}
-}
-
 def discoverBulbs() {
 	log.debug("Bridge discovering bulbs.")
 	def host = this.device.currentValue("networkAddress") + ":80"
 	def username = this.device.currentValue("username")
 
-	def result = new physicalgraph.device.HubAction(
-			method: "GET",
-			path: "/api/${username}/lights",
-			headers: [
-					HOST: host
-			]
-	)
-	return result
+    return parent.getHubAction(host, "/api/${username}/lights", "discoverBulbs_response")
+}
+
+def discoverBulbs_response(resp) {
+	log.debug("Bulb discovery response.")
+	def body = new groovy.json.JsonSlurper().parseText(parseLanMessage(resp.description).body)
+	sendEvent(name: "bulbDiscovery", value: device.hub.id, isStateChange: true, data: [body, this.device.deviceNetworkId])
 }
 
 def discoverScenes() {
 	log.debug("Bridge discovering scenes.")
-	def host = "${this.device.currentValue("networkAddress")}:80"
+	def host = this.device.currentValue("networkAddress") + ":80"
 	def username = this.device.currentValue("username")
 
-	def result = new physicalgraph.device.HubAction(
-			method: "GET",
-			path: "/api/${username}/scenes",
-			headers: [
-					HOST: host
-			]
-	)
-	return result
+    return parent.getHubAction(host, "/api/${username}/scenes", "discoverScenes_response")
+}
+
+def discoverScenes_response(resp) {
+	log.debug("Scene discovery response.")
+    def body = new groovy.json.JsonSlurper().parseText(parseLanMessage(resp.description).body)
+	sendEvent(name: "sceneDiscovery", value: device.hub.id, isStateChange: true, data: [body, this.device.deviceNetworkId])
 }
 
 def discoverGroups() {
 	log.debug("Bridge discovering groups.")
-	def host = "${this.device.currentValue("networkAddress")}:80"
+	def host = this.device.currentValue("networkAddress") + ":80"
 	def username = this.device.currentValue("username")
 
-	def result = new physicalgraph.device.HubAction(
-			method: "GET",
-			path: "/api/${username}/groups",
-			headers: [
-					HOST: host
-			]
-	)
-	return result
+    return parent.getHubAction(host, "/api/${username}/groups", "discoverGroups_response")
+}
+
+def discoverGroups_response(resp) {
+	log.debug("Group discovery response.")
+    def body = new groovy.json.JsonSlurper().parseText(parseLanMessage(resp.description).body)
+	sendEvent(name: "groupDiscovery", value: device.hub.id, isStateChange: true, data: [body, this.device.deviceNetworkId])
 }
 
 // parse events into attributes

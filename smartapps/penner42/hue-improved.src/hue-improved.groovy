@@ -30,6 +30,9 @@ preferences {
     page(name:"linkBridge", content: "linkBridge")
     page(name:"manageBridge", content: "manageBridge")
     page(name:"refreshItems", content: "refreshItems")
+	page(name:"chooseBulbs", content: "chooseBulbs")
+ 	page(name:"chooseScenes", content: "chooseScenes")
+ 	page(name:"chooseGroups", content: "chooseGroups")    
 }
 
 def refreshItems() {
@@ -43,137 +46,257 @@ def refreshItems() {
 	}
 }
 
-def missingDevices(mac) {
-    /* check to see if we need to add bulb, group, or scene devices */
-    def selectedBulbs = settings."${mac}-selectedBulbs" ?: []
-    def selectedScenes = settings."${mac}-selectedScenes" ?: []
-    def selectedGroups = settings."${mac}-selectedGroups" ?: []
-    def bridge = getBridge(mac)
+def chooseBulbs(params) {
+    /* with submitOnChange, params don't get sent when the page is refreshed? */
+    if (params.mac) {
+        state.params = params;
+    } else {
+        params = state.params;
+    }
 
-    def devicesToCreate = ["bulbs":[:], "scenes":[:], "groups":[:]]
-    selectedBulbs.each {
-        def devId = "${mac}/BULB${it}"
-        def dev = getChildDevice(devId)
-        if (!dev) {
-            def label = bridge.value.bulbs[it].name
-            devicesToCreate.bulbs << ["${devId}": label]
+	def bridge = getBridge(params.mac)
+	def addedBulbs = [:]
+    def availableBulbs = [:]
+    
+    bridge.value.bulbs.each {
+		def devId = "${params.mac}/BULB${it.key}"
+		def name = it.value.name
+        
+		def d = getChildDevice(devId) 
+        if (d) {
+        	addedBulbs << it
+        } else {
+        	availableBulbs << it
         }
     }
-    selectedScenes.each {
-        def devId = "${mac}/SCENE${it}"
-        def dev = getChildDevice(devId)
-        if (!dev) {
-            def label = bridge.value.scenes[it].name
-            devicesToCreate.scenes << ["${devId}": label]
-        }
+
+	if (params.add) {
+	    log.debug("Adding ${params.add}")
+        def bulbId = params.add
+		params.add = null
+        def b = bridge.value.bulbs[bulbId]
+		def devId = "${params.mac}/BULB${bulbId}"
+        if (b.type.equalsIgnoreCase("Dimmable light")) {
+			try {
+	            def d = addChildDevice("penner42", "Hue Lux Bulb", devId, bridge.value.hub, ["label": b.name])
+				["bri", "reachable", "on"].each { p -> 
+					d.updateStatus("state", p, b.state[p])
+				}
+                addedBulbs[bulbId] = b
+                availableBulbs.remove(bulbId)
+			} catch (grails.validation.ValidationException e) {
+            	log.debug "${devId} already created."
+			}    
+	    } else {
+			try {
+            	def d = addChildDevice("penner42", "Hue Bulb", devId, bridge.value.hub, ["label": b.name])
+                ["bri", "sat", "reachable", "hue", "on", "ct"].each { p ->
+                	d.updateStatus("state", p, b.state[p])
+				}
+                addedBulbs[bulbId] = b
+                availableBulbs.remove(bulbId)
+			} catch (grails.validation.ValidationException e) {
+	            log.debug "${devId} already created."
+			}
+		}
+	}
+    
+    if (params.remove) {
+    	log.debug "Removing ${params.remove}"
+		def devId = params.remove
+        params.remove = null
+		def bulbId = devId.split("BULB")[1]
+		try {
+        	deleteChildDevice(devId)
+            addedBulbs.remove(bulbId)
+            availableBulbs[bulbId] = bridge.value.bulbs[bulbId]
+		} catch (physicalgraph.exception.NotFoundException e) {
+        	log.debug("${devId} already deleted.")
+            addedBulbs.remove(bulbId)
+            availableBulbs[bulbId] = bridge.value.bulbs[bulbId]
+		} catch (physicalgraph.exception.ConflictException e) {
+        	log.debug("${devId} still in use.")
+            errorText = "Bulb ${bridge.value.bulbs[bulbId].name} is still in use. Remove from any SmartApps or Dashboards, then try again."
+        }     
     }
-    selectedGroups.each {
-        def devId = "${mac}/GROUP${it}"
-        def dev = getChildDevice(devId)
-        if (!dev) {
-            def label = bridge.value.groups[it].name
-            devicesToCreate.groups << ["${devId}": label]
+    
+    dynamicPage(name:"chooseBulbs", title: "", install: true) {
+    	section() {
+        	href(name: "manageBridge", page: "manageBridge", description: "Back to Bridge", title: "", params: [mac: params.mac])
         }
-    }
-    return devicesToCreate
-}
-
-def extraDevices(mac) {
-    def selectedBulbs = settings."${mac}-selectedBulbs" ?: []
-    def selectedScenes = settings."${mac}-selectedScenes" ?: []
-    def selectedGroups = settings."${mac}-selectedGroups" ?: []
-
-    def devicesToRemove = ["bulbs":[:], "scenes":[:], "groups":[:]]
-
-    def devices = getChildDevices()
-    devices.each {
-        def devId = it.deviceNetworkId
-        if (devId.contains(mac) && devId.contains("/")) {
-            def whichDevices = selectedBulbs
-            def removeList = devicesToRemove.bulbs
-            if (devId.contains("SCENE")) {
-                whichDevices = selectedScenes
-                removeList = devicesToRemove.scenes
-            } else if (devId.contains("GROUP")) {
-                whichDevices = selectedGroups
-                removeList = devicesToRemove.groups
-            }
-            def id = devId.split("/")[1] - "GROUP" - "SCENE" - "BULB"
-            if (!(whichDevices.contains(id))) {
-                removeList << ["${devId}": it.label ]
-            }
-        }
-    }
-    return devicesToRemove
-}
-
-def createDevices(mac, devices = null) {
-    def devicesToCreate = devices ?: missingDevices(mac)
-    def bridge = getBridge(mac)
-    log.debug(devicestoCreate)
-    if (devicesToCreate.bulbs.size() > 0 || devicesToCreate.scenes.size() > 0 || devicesToCreate.groups.size() > 0) {
-        devicesToCreate.bulbs.each {
-            def d = getChildDevice(it.key)
-            if (!d) {
-                log.debug("creating ${it.key} - ${it.value}")
-                def bulbId = it.key.split("/")[1] - "BULB"
-                def type = getBridge(mac).value.bulbs[bulbId].type
-                if (type.equalsIgnoreCase("Dimmable light")) {
-                    try {
-                        d = addChildDevice("penner42", "Hue Lux Bulb", it.key, bridge.value.hub, ["label": it.value])
-                        ["bri", "reachable", "on"].each { p -> 
-                        	d.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
-						}
-                    } catch (grails.validation.ValidationException e) {
-                        log.debug "${it.key} already created."
-                    }
-                } else {
-                    try {
-                        d = addChildDevice("penner42", "Hue Bulb", it.key, bridge.value.hub, ["label": it.value])
-                        ["bri", "sat", "reachable", "hue", "on", "ct"].each { p ->
-                            d.updateStatus("state", p, bridge.value.bulbs[bulbId].state[p])
-                        }
-                    } catch (grails.validation.ValidationException e) {
-                        log.debug "${it.key} already created."
-                    }
-                }
-            }
-        }
-        devicesToCreate.scenes.each {
-            def d = getChildDevice(it.key)
-            if (!d) {
-                try {
-                    log.debug("creating ${it.key} - ${it.value}")
-                    addChildDevice("penner42", "Hue Scene", it.key, bridge.value.hub, ["label": it.value])
-                } catch (e) {
-                    log.debug ("Exception ${e}")
-                }
-            }
-        }
-        devicesToCreate.groups.each {
-            def d = getChildDevice(it.key)
-            if (!d) {
-                try {
-                    log.debug("creating ${it.key} - ${it.value}")
-                    addChildDevice("penner42", "Hue Group", it.key, bridge.value.hub, ["label": it.value])
-                } catch (e) {
-                    log.debug ("Exception ${e}")
-                }
-            }
+    	section("Added Bulbs") {
+			addedBulbs.sort{it.value.name}.each { 
+				def devId = "${params.mac}/BULB${it.key}"
+				def name = it.value.name
+				href(name:"${devId}", page:"chooseBulbs", description:"", title:"Remove ${name}", params: [mac: params.mac, remove: devId])
+			}
+		}
+        section("Available Bulbs") {
+			availableBulbs.sort{it.value.name}.each { 
+				def devId = "${params.mac}/BULB${it.key}"
+				def name = it.value.name
+				href(name:"${devId}", page:"chooseBulbs", description:"", title:"Add ${name}", params: [mac: params.mac, add: it.key])
+			}
         }
     }
 }
 
-def removeDevices(mac, devices = null) {
-    def devicesToRemove = devices ?: extraDevices(mac)
-    devicesToRemove.each { b->
-        b.value.each {
-            log.debug "removing ${it.key} - ${it.value}"
-            try {
-                deleteChildDevice(it.key)
-            } catch (physicalgraph.exception.NotFoundException e) {
-                log.debug("${it.key} already deleted.")
-            }
+def chooseScenes(params) {
+    /* with submitOnChange, params don't get sent when the page is refreshed? */
+    if (params.mac) {
+        state.params = params;
+    } else {
+        params = state.params;
+    }
+
+	def bridge = getBridge(params.mac)
+	def addedScenes = [:]
+    def availableScenes = [:]
+    
+    bridge.value.scenes.each {
+		def devId = "${params.mac}/SCENE${it.key}"
+		def name = it.value.name
+        
+		def d = getChildDevice(devId) 
+        if (d) {
+        	addedScenes << it
+        } else {
+        	availableScenes << it
+        }
+    }
+
+	if (params.add) {
+	    log.debug("Adding ${params.add}")
+        def sceneId = params.add
+		params.add = null
+        def s = bridge.value.scenes[sceneId]
+		def devId = "${params.mac}/SCENE${sceneId}"
+		try { 
+			def d = addChildDevice("penner42", "Hue Scene", devId, bridge.value.hub, ["label": s.name])
+			addedScenes[sceneId] = s
+			availableScenes.remove(sceneId)
+		} catch (grails.validation.ValidationException e) {
+            	log.debug "${devId} already created."
+	    }
+	}
+    
+    if (params.remove) {
+    	log.debug "Removing ${params.remove}"
+		def devId = params.remove
+        params.remove = null
+		def sceneId = devId.split("SCENE")[1]
+        try {
+        	deleteChildDevice(devId)
+            addedScenes.remove(sceneId)
+            availableScenes[sceneId] = bridge.value.scenes[sceneId]
+		} catch (physicalgraph.exception.NotFoundException e) {
+        	log.debug("${devId} already deleted.")
+			addedScenes.remove(sceneId)
+            availableScenes[sceneId] = bridge.value.scenes[sceneId]
+		} catch (physicalgraph.exception.ConflictException e) {
+        	log.debug("${devId} still in use.")
+            errorText = "Scene ${bridge.value.scenes[sceneId].name} is still in use. Remove from any SmartApps or Dashboards, then try again."
+        }
+    }
+    
+    dynamicPage(name:"chooseScenes", title: "", install: true) {
+		section() { 
+			href(name: "manageBridge", page: "manageBridge", description: "", title: "Back to Bridge", params: [mac: params.mac])
+        }
+    	section("Added Scenes") {
+			addedScenes.sort{it.value.name}.each { 
+				def devId = "${params.mac}/SCENE${it.key}"
+				def name = it.value.name
+				href(name:"${devId}", page:"chooseScenes", description:"", title:"Remove ${name}", params: [mac: params.mac, remove: devId])
+			}
+		}
+        section("Available Scenes") {
+			availableScenes.sort{it.value.name}.each { 
+				def devId = "${params.mac}/SCENE${it.key}"
+				def name = it.value.name
+				href(name:"${devId}", page:"chooseScenes", description:"", title:"Add ${name}", params: [mac: params.mac, add: it.key])
+			}
+        }
+    }
+}
+
+def chooseGroups(params) {
+    /* with submitOnChange, params don't get sent when the page is refreshed? */
+    if (params.mac) {
+        state.params = params;
+    } else {
+        params = state.params;
+    }
+
+    def errorText = ""
+
+	def bridge = getBridge(params.mac)
+	def addedGroups = [:]
+    def availableGroups = [:]
+    
+    bridge.value.groups.each {
+		def devId = "${params.mac}/GROUP${it.key}"
+		def name = it.value.name
+        
+		def d = getChildDevice(devId) 
+        if (d) {
+        	addedGroups << it
+        } else {
+        	availableGroups << it
+        }
+    }
+
+	if (params.add) {
+	    log.debug("Adding ${params.add}")
+        def groupId = params.add
+		params.add = null
+        def g = bridge.value.groups[groupId]
+		def devId = "${params.mac}/GROUP${groupId}"
+		try { 
+			def d = addChildDevice("penner42", "Hue Group", devId, bridge.value.hub, ["label": g.name])
+			addedGroups[groupId] = g
+			availableGroups.remove(groupId)
+		} catch (grails.validation.ValidationException e) {
+            	log.debug "${devId} already created."
+	    }
+	}
+    
+    if (params.remove) {
+    	log.debug "Removing ${params.remove}"
+		def devId = params.remove
+        params.remove = null
+		def groupId = devId.split("GROUP")[1]
+		try {
+        	deleteChildDevice(devId)
+            addedGroups.remove(groupId)
+            availableGroups[groupId] = bridge.value.groups[groupId]
+		} catch (physicalgraph.exception.NotFoundException e) {
+        	log.debug("${devId} already deleted.")
+            addedGroups.remove(groupId)
+            availableGroups[groupId] = bridge.value.groups[groupId]
+		} catch (physicalgraph.exception.ConflictException e) {
+        	log.debug("${devId} still in use.")
+            errorText = "Group ${bridge.value.groups[groupId].name} is still in use. Remove from any SmartApps or Dashboards, then try again."
+        }
+    }
+
+    return dynamicPage(name:"chooseGroups", title: "", install: true) {
+	    section(errorText) { 
+			href(name: "manageBridge", page: "manageBridge", description: "", title: "Back to Bridge", params: [mac: params.mac])
+        }
+	    section("Added Groups") {
+			addedGroups.sort{it.value.name}.each { 
+				def devId = "${params.mac}/GROUP${it.key}"
+				def name = it.value.name
+				href(name:"${devId}", page:"chooseGroups", description:"", title:"Remove ${name}", params: [mac: params.mac, remove: devId])
+			}
+		}
+        section("Available Groups") {
+			availableGroups.sort{it.value.name}.each { 
+				def devId = "${params.mac}/GROUP${it.key}"
+				def name = it.value.name
+				href(name:"${devId}", page:"chooseGroups", description:"", title:"Add ${name}", params: [mac: params.mac, add: it.key])
+			}
         }
     }
 }
@@ -197,14 +320,6 @@ def manageBridge(params) {
         log.debug("Bridge device not found?")
         /* Error, bridge device doesn't exist? */
         return
-    }
-
-    def devicesToCreate = missingDevices(mac)
-    def devicesToRemove = extraDevices(mac)
-    if (devicesToCreate.bulbs.size() > 0 || devicesToCreate.scenes.size() > 0 || devicesToCreate.groups.size() > 0 ||
-            devicesToRemove.bulbs.size() > 0 || devicesToRemove.scenes.size() > 0 || devicesToRemove.groups.size() > 0 ) {
-        removeDevices(mac, devicesToRemove)
-        createDevices(mac, devicesToCreate)
     }
 
     int itemRefreshCount = !state.itemRefreshCount ? 0 : state.itemRefreshCount as int
@@ -242,44 +357,17 @@ def manageBridge(params) {
 	/* discovery complete, re-enable device sync */
 	runEvery5Minutes(doDeviceSync)
     
-    def bulbList = [:]
-    def sceneList = [:]
-    def groupList = [:]
+    def numBulbs = bridge.value.bulbs.size() ?: 0
+    def numScenes = bridge.value.scenes.size() ?: 0
+    def numGroups = bridge.value.groups.size() ?: 0
 
-    bridge.value.bulbs.each {
-        bulbList[it.value.id] = it.value.name
-    }
-    bridge.value.scenes.each {
-        sceneList[it.value.id] = it.value.name
-    }
-    bridge.value.groups.each {
-        groupList[it.value.id] = it.value.name
-    }
-
-    def numBulbs = bulbList.size() ?: 0
-    def numScenes = sceneList.size() ?: 0
-    def numGroups = groupList.size() ?: 0
-
-/*    def paragraphText = ""
-    if (state.itemDiscoveryComplete) {
-        refreshInterval = 0
-//        paragraphText = "Item discovery complete! Bulbs, groups, and scenes listed below. If any items are missing, please tap back and try again.\n\n" +
-          paragraphText = "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
-
-    } else {
-        refreshInterval = 2
-        //paragraphText =  "Starting discovery of Bulbs, Scenes, and Groups. This can take some time, results will appear below.\n\n" +
-		paragraphText = "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
-    }
-*/
-	def paragraphText = "Note: Don't select more than 5 devices to add at a time, or SmartThings will timeout with an error."
-    dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", /* refreshInterval: refreshInterval ,*/ install: true) {
-        section(paragraphText) {
+    dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", install: true) {
+        section("") {
 			href(name:"Refresh items", page:"refreshItems", title:"", description: "Refresh discovered items")
-            input "${mac}-selectedBulbs", "enum", required:false, title:"Select Hue Bulbs (${numBulbs} found)", multiple:true, submitOnChange: true, options:bulbList.sort{it.value}
-            input "${mac}-selectedScenes", "enum", required:false, title:"Select Hue Scenes (${numScenes} found)", multiple:true, submitOnChange: true, options:sceneList.sort{it.value}
-            input "${mac}-selectedGroups", "enum", required:false, title:"Select Hue Groups (${numGroups} found)", multiple:true, submitOnChange: true, options:groupList.sort{it.value}
-			href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
+			href(name:"Choose Bulbs", page:"chooseBulbs", description:"", title: "Choose Bulbs (${numBulbs} found)", params: [mac: mac])
+            href(name:"Choose Scenes", page:"chooseScenes", description:"", title: "Choose Scenes (${numScenes} found)", params: [mac: mac])
+			href(name:"Choose Groups", page:"chooseGroups", description:"", title: "Choose Groups (${numGroups} found)", params: [mac: mac])
+            href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
 		}
     }
 }

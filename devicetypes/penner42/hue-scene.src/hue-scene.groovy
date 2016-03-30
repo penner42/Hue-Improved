@@ -19,6 +19,8 @@ metadata {
         capability "Switch"
         capability "Momentary"
         capability "Sensor"
+        capability "Polling"
+		capability "Refresh"
         
         command "updateScene"
 	}
@@ -53,6 +55,7 @@ metadata {
 // parse events into attributes
 def parse(String description) {
 	log.debug "Parsing '${description}'"
+	
 }
 
 /** 
@@ -77,15 +80,45 @@ def push() {
 	sendEvent(name: "momentary", value: "pushed", isStateChange: true)    
     
     def commandData = parent.getCommandData(this.device.deviceNetworkId)
-    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/groups/0/action", [scene: "${commandData.deviceId}"], "commandResponse")
+	log.debug(commandData)
+    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/groups/0/action",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [scene: "${commandData.deviceId}"]
+		])
+	)
+}
+
+/** 
+ * capability.polling
+ **/
+def poll() {
+
+}
+
+/**
+ * capability.refresh
+ **/
+def refresh() {
+
 }
 
 def updateScene() {
 	log.debug("Updating scene!")
     def commandData = parent.getCommandData(this.device.deviceNetworkId)
-    return parent.putHubAction(commandData.ip, "/api/${commandData.username}/scenes/${commandData.deviceId}", [storelightstate: true], "commandResponse")
-}
-
-def commandResponse(resp) {
-	// any need to check these responses? 
+	log.debug(commandData)
+    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/scenes/${commandData.deviceId}/",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [storelightstate: true]
+		])
+	)	
 }

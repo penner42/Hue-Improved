@@ -123,7 +123,7 @@ def poll() {
  * capability.refresh
  **/
 def refresh() {
-	parent.refresh()
+	parent.doDeviceSync()
 }
 
 def updateStatus(action, param, val) {

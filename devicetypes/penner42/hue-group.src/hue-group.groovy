@@ -99,13 +99,10 @@ def setColor(value) {
 	log.debug(value)
 	def hue = parent.scaleLevel(value.hue, true, 65535) 
     def sat = parent.scaleLevel(value.saturation, true, 254)
-    def bri
-    if (device.currentValue("level")) {
-	    bri = parent.scaleLevel(device.currentValue("level"), true, 254)
-	} else {
-    	bri = parent.scaleLevel(100, true, 254)
-    }
-	log.debug "Setting color to [${hue}, ${sat}, ${bri}]"
+    def bri = value.bri ?: this.device.currentValue("level")
+ 	bri = parent.scaleLevel(bri, true, 254)
+    
+    log.debug "Setting color to [${hue}, ${sat}, ${bri}]"
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
@@ -122,13 +119,13 @@ def setColor(value) {
 def setHue(hue) {
 	def sat = this.device.currentValue("sat") ?: 56
     dev level = this.device.currentValue("level") ?: 100
-    setColor([level:level, saturation:sat, hue:hue])
+	setColor([bri:level, saturation:sat, hue:hue])
 }
 
 def setSaturation(sat) {
 	def hue = this.device.currentValue("hue") ?: 23
     dev level = this.device.currentValue("level") ?: 100
-    setColor([level:level, saturation:sat, hue:hue])
+	setColor([bri:level, saturation:sat, hue:hue])
 }
 
 
@@ -197,12 +194,12 @@ def poll() {
  * capability.refresh
  **/
 def refresh() {
-	parent.refresh()
+	parent.doDeviceSync()
 }
 
 def reset() {
 	log.debug "Resetting color."
-    def value = [level:100, hex:"#90C638", saturation:56, hue:23]
+    def value = [bri:100, saturation:56, hue:23]
     setColor(value)
 }
 

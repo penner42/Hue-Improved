@@ -19,8 +19,6 @@ metadata {
         capability "Switch"
         capability "Momentary"
         capability "Sensor"
-        capability "Polling"
-		capability "Refresh"
         
         command "updateScene"
 	}
@@ -91,20 +89,6 @@ def push() {
 	        body: [scene: "${commandData.deviceId}"]
 		])
 	)
-}
-
-/** 
- * capability.polling
- **/
-def poll() {
-
-}
-
-/**
- * capability.refresh
- **/
-def refresh() {
-
 }
 
 def updateScene() {

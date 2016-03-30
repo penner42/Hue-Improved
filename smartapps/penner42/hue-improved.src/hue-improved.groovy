@@ -29,21 +29,9 @@ preferences {
     page(name:"linkButton", content: "linkButton")
     page(name:"linkBridge", content: "linkBridge")
     page(name:"manageBridge", content: "manageBridge")
-    page(name:"refreshItems", content: "refreshItems")
 	page(name:"chooseBulbs", content: "chooseBulbs")
  	page(name:"chooseScenes", content: "chooseScenes")
  	page(name:"chooseGroups", content: "chooseGroups")    
-}
-
-def refreshItems() {
-	def bridge = getBridge(state.params.mac)
-	bridge.value.itemsDiscovered = false
-    state.itemDiscoveryComplete = false
-	return dynamicPage(name:"refreshItems", title: "Rediscover Items", nextPage: "manageBridge") {
-		section() {
-        	paragraph "Item rediscovery started. Please tap next."
-        }
-	}
 }
 
 def chooseBulbs(params) {
@@ -321,7 +309,13 @@ def manageBridge(params) {
         /* Error, bridge device doesn't exist? */
         return
     }
-
+    
+	if (params.refreshItems) {
+    	params.refreshItems = false
+		bridge.value.itemsDiscovered = false
+    	state.itemDiscoveryComplete = false        
+    }
+    
     int itemRefreshCount = !state.itemRefreshCount ? 0 : state.itemRefreshCount as int
     if (!state.itemDiscoveryComplete) {
         state.itemRefreshCount = itemRefreshCount + 1
@@ -363,7 +357,7 @@ def manageBridge(params) {
 
     dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", install: true) {
         section("") {
-			href(name:"Refresh items", page:"refreshItems", title:"", description: "Refresh discovered items")
+			href(name:"Refresh items", page:"manageBridge", title:"", description: "Refresh discovered items", params: [mac: mac, refreshItems: true])
 			href(name:"Choose Bulbs", page:"chooseBulbs", description:"", title: "Choose Bulbs (${numBulbs} found)", params: [mac: mac])
             href(name:"Choose Scenes", page:"chooseScenes", description:"", title: "Choose Scenes (${numScenes} found)", params: [mac: mac])
 			href(name:"Choose Groups", page:"chooseGroups", description:"", title: "Choose Groups (${numGroups} found)", params: [mac: mac])

@@ -23,6 +23,7 @@ metadata {
 		capability "Sensor"
         
         command "updateStatus"
+        command "flash"        
 	}
 
 	simulator {
@@ -45,9 +46,11 @@ metadata {
         standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
-
+		standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-single"
+		}        
         main(["rich-control"])
-        details(["rich-control", "refresh"])
+        details(["rich-control", "refresh", "flash"])
     }
 
 }
@@ -124,6 +127,38 @@ def poll() {
  **/
 def refresh() {
 	parent.doDeviceSync()
+}
+
+def flash() {
+	log.debug "Flashing..."
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+	parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [alert: "lselect"]
+		])
+	)
+    
+    runIn(5, flash_off)
+}
+
+def flash_off() {
+	log.debug "Flash off."
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+	parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [alert: "none"]
+		])
+	)
 }
 
 def updateStatus(action, param, val) {

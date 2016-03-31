@@ -26,7 +26,8 @@ metadata {
         
         command "updateStatus"
         command "reset"
-        
+        command "flash"
+
         attribute "colorTemp", "number"
 	}
 
@@ -62,9 +63,12 @@ metadata {
         controlTile("colorTemp", "device.colorTemp", "slider", inactiveLabel: false,  width: 4, height: 1, range:"(2000..6500)") { 
         	state "setCT", action:"setColorTemperature"
 		}
+		standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-multi"
+		}
 	}
 	main(["switch"])
-	details(["switch","valueCT","colorTemp","refresh","reset"])
+	details(["switch","valueCT","colorTemp","refresh","reset","flash"])
 }
 
 // parse events into attributes
@@ -201,6 +205,38 @@ def reset() {
 	log.debug "Resetting color."
     def value = [bri:100, saturation:56, hue:23]
     setColor(value)
+}
+
+def flash() {
+	log.debug "Flashing..."
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+	parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [alert: "lselect"]
+		])
+	)
+    
+    runIn(5, flash_off)
+}
+
+def flash_off() {
+	log.debug "Flash off."
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+	parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [alert: "none"]
+		])
+	)
 }
 
 def updateStatus(action, param, val) {

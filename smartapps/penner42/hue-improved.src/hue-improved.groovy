@@ -25,7 +25,7 @@ definition(
 )
 
 preferences {
-    page(name:"Bridges", title:"Hue Bridges", content: "bridges")
+    page(name:"Bridges", content: "bridges")
     page(name:"linkButton", content: "linkButton")
     page(name:"linkBridge", content: "linkBridge")
     page(name:"manageBridge", content: "manageBridge")
@@ -321,30 +321,20 @@ def manageBridge(params) {
         state.itemRefreshCount = itemRefreshCount + 1
     }
 
-    def discoveryPagetext = ["Discovering bulbs...", "Discovering bulbs... done\nDiscovering scenes...", "Discovering bulbs... done\nDiscovering scenes... done.\nDiscovering groups..."]
-
-    /* resend request if we haven't received a response in 4 seconds */
-    if (!bridge.value.itemsDiscovered && ((!state.inItemDiscovery && !state.itemDiscoveryComplete) || (state.itemRefreshCount == 3))) {
-        if (state.numDiscoveryResponses == 3) {
-            state.itemDiscoveryComplete = true
-            state.numDiscoveryResponses = 0
-            state.itemRefreshCount = 0
-            bridge.value.itemsDiscovered = true
-        } else {
-        	/* disable device sync while doing discovery */
-        	unschedule() 
-            state.itemDiscoveryComplete = false
-            state.inItemDiscovery = mac
-            bridgeDevice.discoverItems(state.numDiscoveryResponses)
-            state.itemRefreshCount = 0
-            return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
-                section(discoveryPagetext[state.numDiscoveryResponses]) {
-                }
-            }
-        }
+    // resend request if we haven't received a response in 10 seconds 
+    if (!bridge.value.itemsDiscovered && ((!state.inItemDiscovery && !state.itemDiscoveryComplete) || (state.itemRefreshCount == 6))) {
+		unschedule() 
+        state.itemDiscoveryComplete = false
+        state.inItemDiscovery = mac
+        bridgeDevice.discoverItems()
+        state.itemRefreshCount = 0
+        return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
+        	section("Discovering bulbs, scenes, and groups...") {
+			}
+		}
     } else if (state.inItemDiscovery) {
         return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
-            section(discoveryPagetext[state.numDiscoveryResponses]) {
+            section("Discovering bulbs, scenes, and groups...") {
             }
         }
     }
@@ -355,8 +345,8 @@ def manageBridge(params) {
     def numScenes = bridge.value.scenes.size() ?: 0
     def numGroups = bridge.value.groups.size() ?: 0
 
-    dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", install: true) {
-        section("") {
+    dynamicPage(name:"manageBridge", install: true) {
+        section("Manage Bridge ${ip}") {
 			href(name:"Refresh items", page:"manageBridge", title:"", description: "Refresh discovered items", params: [mac: mac, refreshItems: true])
 			href(name:"Choose Bulbs", page:"chooseBulbs", description:"", title: "Choose Bulbs (${numBulbs} found)", params: [mac: mac])
             href(name:"Choose Scenes", page:"chooseScenes", description:"", title: "Choose Scenes (${numScenes} found)", params: [mac: mac])
@@ -570,13 +560,10 @@ def itemDiscoveryHandler(evt) {
     bridge.value.groups = groups
     bridge.value.scenes = scenes
 
-    /* item discovery is done when numDiscoveryResponses == 3
-     * to prevent race conditions, we don't start searching for the next item type until we finish the current one
-     * we can get here if state.inItemDiscovery is false during scheduled sync; don't update these values if so
-     */
 	if (state.inItemDiscovery) {
-	    state.numDiscoveryResponses = state.numDiscoveryResponses + 1
 	    state.inItemDiscovery = false
+        state.itemDiscoveryComplete = true
+        bridge.value.itemsDiscovered = true
 	}
     
     /* update existing devices */
@@ -709,7 +696,7 @@ private sendDeveloperReq(ip, mac) {
             headers: [
                     HOST: ip
             ],
-            body: [devicetype: "$token-0", username: "$token-0"]]))
+            body: [devicetype: "$token-0"]]))
 }
 
 /**
@@ -758,9 +745,7 @@ def doDeviceSync() {
 	state.linked_bridges.each {
 		def bridgeDev = getChildDevice(it.value.mac)
         if (bridgeDev) {
-			bridgeDev.discoverItems(0)
-			bridgeDev.discoverItems(1)
-			bridgeDev.discoverItems(2)            
+			bridgeDev.discoverItems()
         }
 	}
 	discoverHueBridges()

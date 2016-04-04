@@ -21,10 +21,6 @@ metadata {
 		attribute "networkAddress", "string"
 		attribute "username", "string"
 
-        command "discoverBulbs"
-		command "discoverGroups"
-        command "discoverScenes"
-
 		command "discoverItems"
 	}
 
@@ -46,54 +42,14 @@ metadata {
 	}
 }
 
-def discoverItems(count) {
-	if (count == 0) {
-		return discoverBulbs()
-	} else if (count == 1) {
-		return discoverScenes()
-	} else if(count == 2) {
-		return discoverGroups()
-	}
-}
-
-def discoverBulbs() {
-	log.debug("Bridge discovering bulbs.")
+def discoverItems() {
+	log.debug("Bridge discovering items.")
 	def host = this.device.currentValue("networkAddress") + ":80"
 	def username = this.device.currentValue("username")
 
 	def result = new physicalgraph.device.HubAction(
 			method: "GET",
-			path: "/api/${username}/lights",
-			headers: [
-					HOST: host
-			]
-	)
-	return result
-}
-
-def discoverScenes() {
-	log.debug("Bridge discovering scenes.")
-	def host = "${this.device.currentValue("networkAddress")}:80"
-	def username = this.device.currentValue("username")
-
-	def result = new physicalgraph.device.HubAction(
-			method: "GET",
-			path: "/api/${username}/scenes",
-			headers: [
-					HOST: host
-			]
-	)
-	return result
-}
-
-def discoverGroups() {
-	log.debug("Bridge discovering groups.")
-	def host = "${this.device.currentValue("networkAddress")}:80"
-	def username = this.device.currentValue("username")
-
-	def result = new physicalgraph.device.HubAction(
-			method: "GET",
-			path: "/api/${username}/groups",
+			path: "/api/${username}/",
 			headers: [
 					HOST: host
 			]
@@ -132,20 +88,18 @@ def parse(String description) {
 			} else if (body[0] != null && body[0].error != null) {
 				log.debug("Error: ${body}")
 			} else if (bridge) {
-				// && parent.state.inItemDiscovery && parent.state.inItemDiscovery == bridge.value.mac) {
-				def bulbs = bridge.value.bulbs
-				def groups = bridge.value.groups
-				def scenes = bridge.value.scenes
+				def bulbs = [:] //bridge.value.bulbs
+				def groups = [:] //bridge.value.groups
+				def scenes = [:] //bridge.value.scenes
 
-				body.each { k, v ->
-					def deviceCreated = false
-					if (v.type == "Extended color light" || v.type == "Color light" || v.type == "Dimmable light") {
-						bulbs[k] = [id: k, name: v.name, type: v.type, state: v.state]
-					} else if (v.type == "LightGroup" || v.type == "Room") {
-						groups[k] = [id: k, name: v.name, type: v.type, action: v.action]
-					} else {
-						scenes[k] = [id: k, name: v.name]
-					}
+				body.lights?.each { k, v ->
+					bulbs[k] = [id: k, name: v.name, type: v.type, state: v.state]
+			    }
+                body.groups?.each { k, v -> 
+                    groups[k] = [id: k, name: v.name, type: v.type, action: v.action]
+				}
+                body.scenes?.each { k, v -> 
+                    scenes[k] = [id: k, name: v.name]
 				}
 				return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: [bulbs, scenes, groups, bridge.value.mac])
 			}

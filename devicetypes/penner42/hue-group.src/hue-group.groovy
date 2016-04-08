@@ -27,8 +27,11 @@ metadata {
         command "updateStatus"
         command "reset"
         command "flash"
-
+		command "ttUp"
+        command "ttDown"
+        
         attribute "colorTemp", "number"
+        attribute "transitiontime", "number"
 	}
 
 	simulator {
@@ -66,14 +69,41 @@ metadata {
 		standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-multi"
 		}
+        
+        /* transition time */
+		valueTile("ttlabel", "transitiontime", decoration: "flat", width: 4, height: 1) {
+			state "default", label:'Transition Time: ${currentValue}00ms'
+		}
+		valueTile("ttdown", "device.transitiontime", decoration: "flat", width: 1, height: 1) {
+			state "default", label: "-", action:"ttDown"
+		}
+		valueTile("ttup", "device.transitiontime", decoration: "flat", width: 1, height: 1) {
+			state "default", label:"+", action:"ttUp"
+		}
 	}
 	main(["switch"])
-	details(["switch","valueCT","colorTemp","refresh","reset","flash"])
+	details(["switch","valueCT","colorTemp","ttlabel","ttdown","ttup","refresh","reset","flash"])
 }
 
 // parse events into attributes
 def parse(String description) {
 	log.debug "Parsing '${description}'"
+}
+
+def ttUp() {
+	def tt = this.device.currentValue("transitiontime")
+	if (tt == null) { tt = 4 }
+    log.debug "ttup ${tt}"
+    sendEvent(name: "transitiontime", value: tt + 1)
+}
+
+def ttDown() {
+	def tt = this.device.currentValue("transitiontime")
+	if (tt == null) { tt = 4 }
+    tt = tt - 1
+    if (tt < 0) { tt = 0 }
+    log.debug "ttdown ${tt}"
+    sendEvent(name: "transitiontime", value: tt)
 }
 
 /** 
@@ -84,6 +114,9 @@ def setLevel(level) {
 	log.debug "Setting level to ${lvl}."
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -91,7 +124,7 @@ def setLevel(level) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [on:true, bri: lvl]
+	        body: [on:true, bri: lvl, transitiontime: tt]
 		])
 	)    
 }
@@ -105,6 +138,8 @@ def setColor(value) {
     def sat = parent.scaleLevel(value.saturation, true, 254)
     def bri = value.bri ?: this.device.currentValue("level")
  	bri = parent.scaleLevel(bri, true, 254)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }    
     
     log.debug "Setting color to [${hue}, ${sat}, ${bri}]"
 	def commandData = parent.getCommandData(device.deviceNetworkId)
@@ -115,7 +150,7 @@ def setColor(value) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [on:true, hue: hue, sat: sat, bri: bri]
+	        body: [on:true, hue: hue, sat: sat, bri: bri, transitiontime: tt]
 		])
 	)    
 }
@@ -140,6 +175,9 @@ def setColorTemperature(temp) {
 	log.debug("Setting color temperature to ${temp}")
     def ct = Math.round(1000000/temp)
 	def commandData = parent.getCommandData(device.deviceNetworkId)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -147,7 +185,7 @@ def setColorTemperature(temp) {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [on:true, ct: ct]
+	        body: [on:true, ct: ct, transitiontime: tt]
 		])
 	)        
 }
@@ -159,6 +197,8 @@ def on() {
 	log.debug("Turning on!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -166,7 +206,7 @@ def on() {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [on: true, bri: 254]
+	        body: [on: true, bri: 254, transitiontime: tt]
 		])
 	)
 }
@@ -175,6 +215,8 @@ def off() {
 	log.debug("Turning off!")
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }    
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -182,7 +224,7 @@ def off() {
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [on: false]
+	        body: [on: false, transitiontime: tt]
 		])
 	)
 }
@@ -258,6 +300,9 @@ def updateStatus(action, param, val) {
                 break
 			case "ct": 
             	sendEvent(name: "colorTemp", value: Math.round(1000000/val))
+                break
+            case "transitiontime":
+            	sendEvent(name: "transitiontime", value: val)
                 break
 			default: 
 				log.debug("Unhandled parameter: ${param}. Value: ${val}")    

@@ -70,6 +70,7 @@ def chooseBulbs(params) {
 				["bri", "reachable", "on"].each { p -> 
 					d.updateStatus("state", p, b.state[p])
 				}
+                d.updateStatus("state", "transitiontime", 4)
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
 			} catch (grails.validation.ValidationException e) {
@@ -81,6 +82,7 @@ def chooseBulbs(params) {
                 ["bri", "sat", "reachable", "hue", "on", "ct"].each { p ->
                 	d.updateStatus("state", p, b.state[p])
 				}
+                d.updateStatus("state", "transitiontime", 4)
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
 			} catch (grails.validation.ValidationException e) {
@@ -242,6 +244,7 @@ def chooseGroups(params) {
 		def devId = "${params.mac}/GROUP${groupId}"
 		try { 
 			def d = addChildDevice("penner42", "Hue Group", devId, bridge.value.hub, ["label": g.name])
+            d.updateStatus("action", "transitiontime", 4)
 			addedGroups[groupId] = g
 			availableGroups.remove(groupId)
 		} catch (grails.validation.ValidationException e) {

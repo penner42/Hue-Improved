@@ -32,6 +32,67 @@ preferences {
 	page(name:"chooseBulbs", content: "chooseBulbs")
  	page(name:"chooseScenes", content: "chooseScenes")
  	page(name:"chooseGroups", content: "chooseGroups")    
+    page(name:"deleteBridge", content: "deleteBridge")
+}
+
+def deleteBridge(params) {
+    /* with submitOnChange, params don't get sent when the page is refreshed? */
+    if (params.mac) {
+        state.params = params;
+    } else {
+        params = state.params;
+    }
+	
+	def bridge = getBridge(params.mac)
+    def d = getChildDevice(params.mac)
+    log.debug "Deleting bridge ${d.currentValue('networkAddress')} (${params.mac})"
+    
+	def success = true
+	def devices = getChildDevices()
+    def text = ""
+	devices.each {
+    	def devId = it.deviceNetworkId
+        if (devId.contains(params.mac) && devId != params.mac) {
+        	log.debug "Removing ${devId}"
+			try {
+    	    	deleteChildDevice(devId)
+			} catch (physicalgraph.exception.NotFoundException e) {
+	        	log.debug("${devId} already deleted?")
+			} catch (physicalgraph.exception.ConflictException e) {
+	        	log.debug("${devId} still in use.")
+				text = text + "${it.label} is still in use. Remove from any SmartApps or Dashboards, then try again.\n"
+		        success = false
+			}
+        }
+	}
+    if (success) {
+		try {
+        	unsubscribe(d)
+    		deleteChildDevice(params.mac)
+		} catch (physicalgraph.exception.NotFoundException e) {
+	    	log.debug("${params.mac} already deleted?")
+		} catch (physicalgraph.exception.ConflictException e) {
+	    	log.debug("${params.mac} still in use.")
+			text = text + "${params.mac} is still in use. Remove from any SmartApps or Dashboards, then try again.\n"
+			success = false
+		}
+	}
+    if (success) {
+        getLinkedBridges().remove(bridge.key)
+        return dynamicPage(name:"deleteBridge", title: "Delete Bridge", install:false, uninstall:false, nexdtPage: "Bridges") {
+            section() {
+                paragraph "Bridge ${d.currentValue('networkAddress')} and devices successfully deleted."
+            	href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
+            }
+        }    
+    } else {
+        return dynamicPage(name:"deleteBridge", title: "Delete Bridge", install:false, uninstall:false, nextPage: "Bridges") {
+            section() {
+                paragraph "Bridge deletion (${d.currentValue('networkAddress')}) failed.\n${text}"
+				href(name:"Back", page:"Bridges", title:"", description: "Back to main page")                
+            }
+        }    
+    }
 }
 
 def chooseBulbs(params) {
@@ -333,11 +394,13 @@ def manageBridge(params) {
         state.itemRefreshCount = 0
         return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
         	section("Discovering bulbs, scenes, and groups...") {
+				href(name: "Delete Bridge", page:"deleteBridge", title:"", description:"Delete bridge ${ip} (and devices)", params: [mac: mac])
 			}
 		}
     } else if (state.inItemDiscovery) {
         return dynamicPage(name:"manageBridge", title: "Manage bridge ${ip}", refreshInterval: refreshInterval, install: false) {
             section("Discovering bulbs, scenes, and groups...") {
+				href(name: "Delete Bridge", page:"deleteBridge", title:"", description:"Delete bridge ${ip} (and devices)", params: [mac: mac])
             }
         }
     }
@@ -354,6 +417,7 @@ def manageBridge(params) {
 			href(name:"Choose Bulbs", page:"chooseBulbs", description:"", title: "Choose Bulbs (${numBulbs} found)", params: [mac: mac])
             href(name:"Choose Scenes", page:"chooseScenes", description:"", title: "Choose Scenes (${numScenes} found)", params: [mac: mac])
 			href(name:"Choose Groups", page:"chooseGroups", description:"", title: "Choose Groups (${numGroups} found)", params: [mac: mac])
+			href(name: "Delete Bridge", page:"deleteBridge", title:"", description:"Delete bridge ${ip} (and devices)", params: [mac: mac])
             href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
 		}
     }

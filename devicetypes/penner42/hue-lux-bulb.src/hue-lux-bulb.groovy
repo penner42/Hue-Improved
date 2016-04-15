@@ -22,8 +22,12 @@ metadata {
 		capability "Polling"
 		capability "Sensor"
         
+		attribute "transitiontime", "number"
+        
         command "updateStatus"
         command "flash"        
+	    command "ttUp"
+        command "ttDown"
 	}
 
 	simulator {
@@ -49,8 +53,19 @@ metadata {
 		standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-single"
 		}        
+        /* transition time */
+		valueTile("ttlabel", "transitiontime", decoration: "flat", width: 4, height: 1) {
+			state "default", label:'Transition Time: ${currentValue}00ms'
+		}
+		valueTile("ttdown", "device.transitiontime", decoration: "flat", width: 1, height: 1) {
+			state "default", label: "-", action:"ttDown"
+		}
+		valueTile("ttup", "device.transitiontime", decoration: "flat", width: 1, height: 1) {
+			state "default", label:"+", action:"ttUp"
+		}
+        
         main(["rich-control"])
-        details(["rich-control", "refresh", "flash"])
+        details(["rich-control", "ttlabel","ttdown","ttup", "refresh", "flash"])
     }
 
 }
@@ -61,39 +76,20 @@ def parse(String description) {
 
 }
 
-/** 
- * capability.switch
- **/
-def on() {
-	log.debug("Turning on!")
-    
-    def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on: true, bri: 254]
-		])
-	)
+def ttUp() {
+	def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    log.debug "ttup ${tt}"
+    sendEvent(name: "transitiontime", value: tt + 1)
 }
 
-def off() {
-	log.debug("Turning off!")
-    
-    def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [on: false]
-		])
-	)
+def ttDown() {
+	def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    tt = tt - 1
+    if (tt < 0) { tt = 0 }
+    log.debug "ttdown ${tt}"
+    sendEvent(name: "transitiontime", value: tt)
 }
 
 /** 
@@ -104,16 +100,60 @@ def setLevel(level) {
 	log.debug "Setting level to ${lvl}."
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
-	return new physicalgraph.device.HubAction(
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    
+    return new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
-	        body: [on:true, bri: lvl]
+	        body: [on:true, bri: lvl, transitiontime: tt]
 		])
 }
+
+/** 
+ * capability.switch
+ **/
+def on() {
+	log.debug("Turning on!")
+    
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [on: true, bri: 254, transitiontime: tt]
+		])
+	)
+}
+
+def off() {
+	log.debug("Turning off!")
+    
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+    def tt = this.device.currentValue("transitiontime")
+    if (tt == null) { tt = 4 }
+    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    	[
+        	method: "PUT",
+			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+	        headers: [
+	        	host: "${commandData.ip}"
+			],
+	        body: [on: false, transitiontime: tt]
+		])
+	)
+}
+
+
 
 /** 
  * capability.polling
@@ -171,6 +211,9 @@ def updateStatus(action, param, val) {
                 break
             case "bri":
             	sendEvent(name: "level", value: parent.scaleLevel(val))
+                break
+			case "transitiontime":
+            	sendEvent(name: "transitiontime", value: val)
                 break
         }
     }

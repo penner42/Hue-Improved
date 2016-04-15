@@ -29,16 +29,11 @@ metadata {
 	}
 
 	tiles(scale: 2) {
-		multiAttributeTile(name:"rich-control"){
-			tileAttribute ("device.serialNumber", key: "PRIMARY_CONTROL") {
-				attributeState "default", label: "Hue Bridge", icon: "st.Lighting.light99-hue", backgroundColor: "#F3C200"
-			}
-		}
-		standardTile("icon", "icon", width: 1, height: 1, canChangeIcon: false, inactiveLabel: true, canChangeBackground: false) {
-			state "default", label: "Hue Bridge", icon: "st.Lighting.light99-hue", backgroundColor: "#FFFFFF"
-		}
-		main (["icon"])
-		details(["rich-control"])
+        standardTile("bridge", "device.username", width: 6, height: 4) {
+        	state "default", label:"Hue Bridge", inactivelabel:true, icon:"st.Lighting.light99-hue", backgroundColor: "#F3C200"
+        }
+		main "bridge"
+		details "bridge"
 	}
 }
 
@@ -55,6 +50,11 @@ def discoverItems() {
 			]
 	)
 	return result
+}
+
+def handleParse(desc) {
+log.debug("handle")
+	parse(desc)
 }
 
 // parse events into attributes

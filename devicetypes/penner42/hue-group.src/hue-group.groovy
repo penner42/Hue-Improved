@@ -24,13 +24,18 @@ metadata {
 		capability "Refresh"
 		capability "Sensor"
         
-        command "updateStatus"
         command "reset"
+        command "updateStatus"
         command "flash"
 		command "ttUp"
         command "ttDown"
         
         attribute "colorTemp", "number"
+		attribute "bri", "number"
+		attribute "sat", "number"
+		attribute "reachable", "string"
+		attribute "hue", "number"
+		attribute "on", "string"
         attribute "transitiontime", "number"
 	}
 
@@ -136,12 +141,14 @@ def setColor(value) {
 	log.debug(value)
 	def hue = parent.scaleLevel(value.hue, true, 65535) 
     def sat = parent.scaleLevel(value.saturation, true, 254)
-    def bri = value.bri ?: this.device.currentValue("level")
- 	bri = parent.scaleLevel(bri, true, 254)
     def tt = this.device.currentValue("transitiontime")
     if (tt == null) { tt = 4 }    
-    
+
+    def bri = value.level ?: this.device.currentValue("level")
+ 	bri = parent.scaleLevel(bri, true, 254)
+
     log.debug "Setting color to [${hue}, ${sat}, ${bri}]"
+
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
@@ -245,7 +252,7 @@ def refresh() {
 
 def reset() {
 	log.debug "Resetting color."
-    def value = [bri:100, saturation:56, hue:23]
+    def value = [level:100, saturation:56, hue:23]
     setColor(value)
 }
 

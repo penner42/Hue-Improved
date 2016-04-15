@@ -30,19 +30,14 @@ metadata {
 	tiles (scale: 2) {
 	    multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on",  label:'Push', action:"momentary.push", icon:"st.lights.philips.hue-multi"
+				attributeState "on",  label:'Push', action:"momentary.push", icon:"st.lights.philips.hue-multi", backgroundColor:"#79b821"
 			}
 		}
-	    standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
+	    standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-        
-    	standardTile("sceneID", "device.sceneID", inactiveLabel: false, decoration: "flat", width: 3, height: 2) { 
-	       	state "sceneID", label: 'Hue SceneID: ${currentValue}', action:"getSceneID" 
-    	}
-        
 		standardTile("updateScene", "device.updateScene", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-    	   	state "Ready", label: 'UpdateScene                             ', action:"updateScene", backgroundColor:"#FBB215"
+    	   	state "Ready", label: 'UpdateScene', action:"updateScene", backgroundColor:"#F3C200"
 	    }
 	}
     

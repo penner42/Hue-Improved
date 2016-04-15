@@ -94,7 +94,6 @@ metadata {
 // parse events into attributes
 def parse(String description) {
 	log.debug "Parsing '${description}'"
-    updateStatus("state", "on", true)
 }
 
 def ttUp() {
@@ -145,12 +144,12 @@ def setColor(value) {
     def tt = this.device.currentValue("transitiontime")
     if (tt == null) { tt = 4 }
     
-	log.debug "Setting color to [${hue}, ${sat}]"
-	
-    def bri = value.bri ?: this.device.currentValue("level")
+    def bri = value.level ?: this.device.currentValue("level")
  	bri = parent.scaleLevel(bri, true, 254)
 	
-    def commandData = parent.getCommandData(device.deviceNetworkId)
+	log.debug "Setting color to [${hue}, ${sat}, ${bri}]"
+
+	def commandData = parent.getCommandData(device.deviceNetworkId)
 	parent.sendHubCommand(new physicalgraph.device.HubAction(
     	[
         	method: "PUT",
@@ -167,13 +166,13 @@ def setColor(value) {
 def setHue(hue) {
 	def sat = this.device.currentValue("sat") ?: 56
     dev level = this.device.currentValue("level") ?: 100
-	setColor([bri:level, saturation:sat, hue:hue])
+	setColor([level:level, saturation:sat, hue:hue])
 }
 
 def setSaturation(sat) {
 	def hue = this.device.currentValue("hue") ?: 23
     dev level = this.device.currentValue("level") ?: 100
-	setColor([bri:level, saturation:sat, hue:hue])
+	setColor([level:level, saturation:sat, hue:hue])
 }
 
 /**
@@ -255,7 +254,7 @@ def refresh() {
 
 def reset() {
 	log.debug "Resetting color."
-    def value = [bri:100, saturation:56, hue:23]
+    def value = [level:100, saturation:56, hue:23]
     setColor(value)
 }
 

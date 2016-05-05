@@ -172,8 +172,8 @@ def chooseBulbs(params) {
     }
     
     dynamicPage(name:"chooseBulbs", title: "", install: true) {
-    	section() {
-        	href(name: "manageBridge", page: "manageBridge", description: "Back to Bridge", title: "", params: [mac: params.mac])
+    	section("") {
+        	href(name: "manageBridge", page: "manageBridge", title: "Back to Bridge", description: "", params: [mac: params.mac])
         }
     	section("Added Bulbs") {
 			addedBulbs.sort{it.value.name}.each { 
@@ -251,7 +251,7 @@ def chooseScenes(params) {
     }
     
     dynamicPage(name:"chooseScenes", title: "", install: true) {
-		section() { 
+		section("") { 
 			href(name: "manageBridge", page: "manageBridge", description: "", title: "Back to Bridge", params: [mac: params.mac])
         }
     	section("Added Scenes") {
@@ -333,7 +333,7 @@ def chooseGroups(params) {
     }
 
     return dynamicPage(name:"chooseGroups", title: "", install: true) {
-	    section(errorText) { 
+	    section("") { 
 			href(name: "manageBridge", page: "manageBridge", description: "", title: "Back to Bridge", params: [mac: params.mac])
         }
 	    section("Added Groups") {
@@ -413,12 +413,14 @@ def manageBridge(params) {
 
     dynamicPage(name:"manageBridge", install: true) {
         section("Manage Bridge ${ip}") {
-			href(name:"Refresh items", page:"manageBridge", title:"", description: "Refresh discovered items", params: [mac: mac, refreshItems: true])
+			href(name:"Refresh items", page:"manageBridge", title:"Refresh discovered items", description: "", params: [mac: mac, refreshItems: true])
+            paragraph ""
 			href(name:"Choose Bulbs", page:"chooseBulbs", description:"", title: "Choose Bulbs (${numBulbs} found)", params: [mac: mac])
             href(name:"Choose Scenes", page:"chooseScenes", description:"", title: "Choose Scenes (${numScenes} found)", params: [mac: mac])
 			href(name:"Choose Groups", page:"chooseGroups", description:"", title: "Choose Groups (${numGroups} found)", params: [mac: mac])
-			href(name: "Delete Bridge", page:"deleteBridge", title:"", description:"Delete bridge ${ip} (and devices)", params: [mac: mac])
-            href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
+            paragraph ""
+            href(name: "Delete Bridge", page:"deleteBridge", title:"Delete bridge ${ip}", description: "", params: [mac: mac])
+            href(name:"Back", page:"Bridges", title:"Back to main page", description: "")
 		}
     }
 }
